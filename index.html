@@ -58,6 +58,10 @@
         <span class="t-name">Frases</span>
         <span class="t-count" id="count-frases">0/200</span>
       </button>
+      <button role="tab" data-track="ia">
+        <span class="t-name">Minhas palavras</span>
+        <span class="t-count" id="count-ia">0/0</span>
+      </button>
     </div>
 
     <nav class="days" id="days" aria-label="Escolha o dia"></nav>
@@ -94,6 +98,7 @@
       <p id="startInfo"></p>
       <div class="foot-actions">
         <button class="link-btn" id="installBtn" hidden>Instalar o app no celular</button>
+        <button class="link-btn" id="mineOpen">Minhas frases</button>
         <button class="link-btn" id="exportBtn">Baixar backup do progresso</button>
         <button class="link-btn" id="importBtn">Restaurar backup</button>
         <button class="link-btn" id="resetBtn">Apagar progresso e recomeçar hoje</button>
@@ -112,11 +117,32 @@
     <ul class="search-results" id="searchResults" aria-live="polite"></ul>
   </div>
 
+  <div class="search mine" id="mine" hidden role="dialog" aria-modal="true" aria-labelledby="mineTitle">
+    <div class="search-bar">
+      <h2 class="mine-title" id="mineTitle">Minhas frases</h2>
+      <button class="link-btn" id="mineClose">Fechar</button>
+    </div>
+    <div class="mine-body">
+      <form class="mine-form" id="mineForm" autocomplete="off">
+        <label>Frase em inglês <input name="en" required lang="en" spellcheck="false" placeholder="Where is the bathroom?"></label>
+        <label>Tradução <input name="pt" required placeholder="Onde fica o banheiro?"></label>
+        <label>Uma resposta em inglês <small>(opcional)</small> <input name="exEn" lang="en" spellcheck="false" placeholder="It's over there."></label>
+        <label>Tradução da resposta <small>(opcional)</small> <input name="exPt" placeholder="Fica ali."></label>
+        <button class="btn primary" type="submit">Adicionar frase</button>
+      </form>
+      <p class="mine-or">ou deixe a IA criar frases novas com as palavras que você já sabe:</p>
+      <button class="btn ai-btn" id="mineAi" type="button">Gerar 10 frases com IA</button>
+      <p class="mine-count" id="mineCount"></p>
+      <ul class="mine-list" id="mineList"></ul>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" hidden></div>
 
   <script src="words.js"></script>
   <script src="phrasal.js"></script>
   <script src="frases.js"></script>
-  <script src="app.js"></script>
+  <!-- db.js abre o banco de frases no navegador e depois carrega o app.js -->
+  <script src="db.js"></script>
 </body>
 </html>

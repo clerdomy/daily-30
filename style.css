@@ -157,8 +157,8 @@ body.is-review .review-banner { display: none; }
   gap: 0;
   color: var(--muted);
 }
-.tracks { grid-template-columns: repeat(3, 1fr); }
-.tracks .t-name { font-family: var(--display); font-weight: 800; font-size: 1rem; line-height: 1.15; text-align: center; }
+.tracks { grid-template-columns: repeat(4, 1fr); }
+.tracks .t-name { font-family: var(--display); font-weight: 800; font-size: 0.92rem; line-height: 1.15; text-align: center; }
 .tracks .t-count { font-size: 0.8rem; }
 .tracks button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--cobalt); }
 .tracks button[aria-selected="true"] .t-count { color: var(--cobalt); font-weight: 700; }
@@ -724,6 +724,38 @@ kbd {
 .search-empty { padding: 16px; color: var(--muted); }
 body.no-scroll { overflow: hidden; }
 
+/* ---------- Minhas frases ---------- */
+.mine-title { flex: 1; margin: 0; font-family: var(--display); font-size: 1.2rem; color: var(--ink); }
+.mine-body { flex: 1; overflow-y: auto; padding: 16px 16px calc(24px + var(--safe-bottom)); background: var(--bg); }
+.mine-form { display: grid; gap: 12px; }
+.mine-form label { display: grid; gap: 4px; font-weight: 700; font-size: 0.95rem; }
+.mine-form small { font-weight: 400; color: var(--muted); }
+.mine-form input {
+  width: 100%;
+  font: inherit;
+  font-weight: 400;
+  padding: 10px 14px;
+  min-height: 48px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+.mine-form input:focus { outline: none; border-color: var(--cobalt); }
+.mine-count { color: var(--muted); margin: 18px 0 8px; }
+.mine-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.mine-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.mine-item > div { flex: 1; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.mine-item .link-btn { color: var(--bad); min-height: 44px; }
+body.is-empty .days,
+body.is-empty .day-head,
+body.is-empty .modes { display: none; }
+.note .answer-row { margin-top: 10px; }
+.ai-btn { width: 100%; }
+.mine-or { color: var(--muted); margin: 18px 0 8px; }
+.remove-word { grid-column: 2; justify-self: start; color: var(--bad); font-size: 0.9rem; min-height: 36px; padding: 4px 0; }
+.link-btn.inline { padding: 0; min-height: 0; color: var(--cobalt); font-weight: 700; text-decoration: underline; }
+
 /* ---------- Aviso rápido ---------- */
 .toast {
   position: fixed;
@@ -759,7 +791,7 @@ body.no-scroll { overflow: hidden; }
   body { font-size: 17px; }
   .app { padding: calc(32px + var(--safe-top)) 28px calc(48px + var(--safe-bottom)); }
 
-  .tracks { display: inline-grid; grid-template-columns: repeat(3, auto); gap: 8px; }
+  .tracks { display: inline-grid; grid-template-columns: repeat(4, auto); gap: 8px; }
   .tracks .t-name { font-size: 1.1rem; }
   .review-banner { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; }
   .review-banner .btn { flex: none; }
@@ -772,6 +804,7 @@ body.no-scroll { overflow: hidden; }
   .search { inset: 0; background: rgba(14, 21, 39, 0.4); padding: 8vh 16px; align-items: center; }
   .search-bar, .search-results { width: 100%; max-width: 640px; }
   .search-bar { border-radius: var(--radius-sm) var(--radius-sm) 0 0; border: 1px solid var(--line); }
+  .mine-body { flex: 0 1 auto; width: 100%; max-width: 640px; max-height: 76vh; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
   .search-results { flex: 0 1 auto; max-height: 70vh; background: var(--bg); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding-bottom: 0; }
   .tracks button { flex-direction: row; align-items: baseline; gap: 8px; padding: 8px 14px 10px; }
   .top { grid-template-columns: 1fr 260px; align-items: end; gap: 16px 32px; margin-bottom: 28px; }

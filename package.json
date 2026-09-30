@@ -1,0 +1,8 @@
+{
+  "name": "ingles-30-dias",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  }
+}

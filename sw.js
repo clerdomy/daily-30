@@ -1,6 +1,6 @@
 // Service worker: deixa o app funcionar offline depois da primeira visita.
 // Ao mudar os arquivos do app, aumente o número da versão abaixo.
-const CACHE = "ingles30-v1";
+const CACHE = "ingles30-v3";
 const ASSETS = [
   "./",
   "index.html",
@@ -9,6 +9,7 @@ const ASSETS = [
   "words.js",
   "phrasal.js",
   "frases.js",
+  "db.js",
   "manifest.webmanifest",
   "icons/icon-192.png",
   "icons/icon-512.png",

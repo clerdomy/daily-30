@@ -17,8 +17,16 @@ const STORE_KEY = "ingles300-v1";
    TRILHAS
    Dias 1 a 10: palavras e phrasal verbs. Dias 11 a 30: frases.
    ========================================================= */
+// n = posição do item na trilha (1, 2, 3...); id = chave fixa usada no progresso salvo
 function buildItems(data, perDay, firstDay) {
-  return data.map(([en, pt, exEn, exPt], i) => ({ id: i, en, pt, exEn, exPt, day: firstDay + Math.floor(i / perDay) }));
+  return data.map(([en, pt, exEn, exPt], i) => ({ id: i, n: i + 1, en, pt, exEn, exPt, day: firstDay + Math.floor(i / perDay) }));
+}
+// Frases e "Minhas palavras" vêm do banco de dados do navegador (db.js)
+function buildDbItems(list, perDay, firstDay) {
+  return list.map((f, i) => ({
+    id: f.id, n: i + 1, en: f.en, pt: f.pt, exEn: f.exEn || "", exPt: f.exPt || "",
+    mine: Boolean(f.mine), day: firstDay + Math.floor(i / perDay),
+  }));
 }
 const TRACKS = {
   words: {
@@ -34,19 +42,46 @@ const TRACKS = {
     themes: PHRASAL_THEMES, items: buildItems(PHRASALS, 10, 1), sentence: false,
   },
   frases: {
-    name: "Frases", tag: "Frase", title: "200 frases",
-    sub: "Frases prontas para conversar, 10 por dia, do Dia 11 ao 30.",
+    name: "Frases", tag: "Frase", title: "", sub: "",
     noun: "frases", learned: "aprendidas", perDay: 10, firstDay: 11,
-    themes: FRASE_THEMES, items: buildItems(FRASES, 10, 11), sentence: true,
+    themes: FRASE_THEMES, items: [], sentence: true,
+  },
+  ia: {
+    name: "Minhas palavras", tag: "Minha palavra", title: "", sub: "",
+    noun: "palavras", learned: "aprendidas", perDay: 10, firstDay: 31,
+    themes: [], sentence: false,
+    items: [],
   },
 };
-for (const [key, t] of Object.entries(TRACKS)) {
-  t.key = key;
-  t.lastDay = t.firstDay + Math.ceil(t.items.length / t.perDay) - 1;
-}
 const TRACK_KEYS = Object.keys(TRACKS);
-const TOTAL_DAYS = Math.max(...TRACK_KEYS.map((k) => TRACKS[k].lastDay));
-const TOTAL_ITEMS = TRACK_KEYS.reduce((n, k) => n + TRACKS[k].items.length, 0);
+let TOTAL_DAYS = 0;
+let TOTAL_ITEMS = 0;
+// Recalcula dias e totais (roda de novo quando você adiciona ou apaga algo)
+function refreshTracks() {
+  for (const [key, t] of Object.entries(TRACKS)) {
+    t.key = key;
+    t.lastDay = t.firstDay + Math.max(1, Math.ceil(t.items.length / t.perDay)) - 1;
+    t.byId = new Map(t.items.map((w) => [w.id, w]));
+  }
+  const f = TRACKS.frases;
+  f.title = `${f.items.length} frases`;
+  f.sub = `Frases prontas para conversar, 10 por dia, do Dia ${f.firstDay} ao ${f.lastDay}.`;
+  const ia = TRACKS.ia;
+  ia.title = "Minhas palavras";
+  ia.sub = ia.items.length
+    ? `${ia.items.length} palavras novas que a IA escolheu para você, 10 por dia, a partir do Dia ${ia.firstDay}.`
+    : "Palavras novas que a IA escolhe com base no que você já sabe.";
+  // uma trilha vazia não conta nos dias do curso
+  TOTAL_DAYS = Math.max(...TRACK_KEYS.filter((k) => TRACKS[k].items.length).map((k) => TRACKS[k].lastDay));
+  TOTAL_ITEMS = TRACK_KEYS.reduce((n, k) => n + TRACKS[k].items.length, 0);
+}
+function setDbTrack(key, list) {
+  const t = TRACKS[key];
+  t.items = buildDbItems(list, t.perDay, t.firstDay);
+  refreshTracks();
+}
+setDbTrack("frases", window.FRASES_LIST || FraseDB.seedList());
+setDbTrack("ia", window.PALAVRAS_LIST || []);
 
 /* =========================================================
    DATAS
@@ -84,11 +119,16 @@ const state = {
 };
 for (const key of TRACK_KEYS) {
   const t = savedTracks[key] || {};
+  // descarta marcações de frases que foram apagadas (se o banco não abriu, mantém tudo)
+  const exists = (id) => !FraseDB.ok || TRACKS[key].byId.has(id);
   state.tracks[key] = {
-    known: new Set(t.known || []),
+    known: new Set((t.known || []).filter(exists)),
     best: t.best || {},
     done: new Set(t.done || []),
   };
+}
+if (FraseDB.ok) {
+  for (const k of Object.keys(state.srs)) if (!parseKey(k)) delete state.srs[k];
 }
 // quem já tinha marcado itens antes da revisão existir: entram na revisão a partir de amanhã
 for (const key of TRACK_KEYS) {
@@ -130,7 +170,7 @@ const skey = (track, id) => `${track}:${id}`;
 function parseKey(k) {
   const [track, raw] = k.split(":");
   const id = Number(raw);
-  if (!TRACKS[track] || !TRACKS[track].items[id]) return null;
+  if (!TRACKS[track] || !TRACKS[track].byId.has(id)) return null;
   return { track, id };
 }
 // Acertou: sobe de nível (só se já estava na hora de revisar ou se é novo).
@@ -289,7 +329,7 @@ const view = $("#view");
 
 const T = () => TRACKS[ui.track];
 const S = () => state.tracks[ui.track];
-const item = (id) => T().items[id];
+const item = (id) => T().byId.get(id);
 const itemsOfDay = (d) => T().items.filter((w) => w.day === d);
 const knownInDay = (d) => itemsOfDay(d).filter((w) => S().known.has(w.id)).length;
 const totalKnown = () => TRACK_KEYS.reduce((n, k) => n + state.tracks[k].known.size, 0);
@@ -309,7 +349,7 @@ function renderHeader() {
   $("#knownCount").textContent = n;
   $("#totalCount").textContent = total;
   $("#learnedWord").textContent = inReview ? "itens aprendidos no total" : t.learned;
-  $("#knownBar").style.width = `${(n / total) * 100}%`;
+  $("#knownBar").style.width = `${total ? (n / total) * 100 : 0}%`;
   $("#knownBarWrap").setAttribute("aria-valuenow", n);
   $("#knownBarWrap").setAttribute("aria-valuemax", total);
 
@@ -366,15 +406,16 @@ function renderDayHead() {
   const t = T();
   const today = todayNumber();
   const dayItems = itemsOfDay(ui.day);
-  const first = dayItems[0].id + 1;
-  const last = dayItems[dayItems.length - 1].id + 1;
+  const first = dayItems[0].n;
+  const last = dayItems[dayItems.length - 1].n;
   let when;
   if (ui.day === today) when = `Hoje, ${fmtLong(dateOfDay(ui.day))}.`;
   else if (ui.day > today) when = `Previsto para ${fmtLong(dateOfDay(ui.day))}. Pode adiantar se quiser.`;
   else when = `Era o dia de ${fmtLong(dateOfDay(ui.day))}. Bom momento para revisar.`;
   const noun = t.noun.charAt(0).toUpperCase() + t.noun.slice(1);
   $("#dayTitle").textContent = `Dia ${ui.day}`;
-  $("#dayTheme").textContent = t.themes[ui.day - t.firstDay] || "";
+  $("#dayTheme").textContent = t.themes[ui.day - t.firstDay]
+    || (ui.track === "frases" ? "Frases que você adicionou" : ui.track === "ia" ? "Palavras escolhidas pela IA" : "");
   $("#dayMeta").textContent = `${noun} ${first} a ${last}. ${when} Você já sabe ${knownInDay(ui.day)} de ${dayItems.length}.`;
 }
 
@@ -386,6 +427,10 @@ function renderModes() {
 
 function render() {
   document.body.classList.toggle("is-review", ui.mode === "review");
+  // "Minhas palavras" ainda vazia: mostra só o convite para gerar com a IA
+  const empty = !T().items.length && ui.mode !== "review";
+  document.body.classList.toggle("is-empty", empty);
+  if (empty) { renderHeader(); renderModes(); view.innerHTML = IA_EMPTY; return; }
   renderHeader();
   renderDays();
   renderDayHead();
@@ -395,7 +440,7 @@ function render() {
   if (ui.mode === "quiz") { if (!quiz) startQuiz(); renderQuiz(); }
   if (ui.mode === "review") { if (!review) startReview(false); renderReview(); }
 }
-function refreshProgress() { renderHeader(); renderDays(); renderDayHead(); }
+function refreshProgress() { renderHeader(); if (T().items.length) { renderDays(); renderDayHead(); } }
 
 /* =========================================================
    MODO LISTA
@@ -408,6 +453,20 @@ const PHRASAL_NOTE = `
 const FRASES_NOTE = `
   <div class="note">
     <p><b>Agora é hora de juntar tudo.</b> Estas frases usam as palavras e os phrasal verbs dos Dias 1 a 10. Cada uma vem com uma resposta, para você treinar a conversa dos dois lados.</p>
+    <p>Quer treinar outras frases? <button class="link-btn inline" data-action="open-mine">Adicione as suas</button>. Elas entram depois do Dia 30.</p>
+  </div>`;
+
+const IA_BUTTON = `<button class="btn primary ai-btn" data-action="ai-words">Gerar 10 palavras novas com IA</button>`;
+const IA_EMPTY = `
+  <div class="result">
+    <h3>Palavras novas escolhidas para você</h3>
+    <p>A IA olha as palavras que você marcou como <b>Já sei</b> e sugere 10 palavras novas, com tradução e exemplo. Elas ficam salvas neste aparelho.</p>
+    <div class="answer-row">${IA_BUTTON}</div>
+  </div>`;
+const IA_NOTE = `
+  <div class="note">
+    <p><b>Palavras escolhidas pela IA</b> com base no que você já sabe. Quer mais? Gere outras 10 quando quiser.</p>
+    <div class="answer-row">${IA_BUTTON}</div>
   </div>`;
 
 function usesHTML(w) {
@@ -424,8 +483,8 @@ function renderList() {
   const t = T();
   const words = itemsOfDay(ui.day);
   const known = S().known;
-  const note = ui.track === "phrasal" ? PHRASAL_NOTE : ui.track === "frases" ? FRASES_NOTE : "";
-  const noun = ui.track === "words" ? "uma palavra" : ui.track === "phrasal" ? "um phrasal verb" : "uma frase";
+  const note = { phrasal: PHRASAL_NOTE, frases: FRASES_NOTE, ia: IA_NOTE }[ui.track] || "";
+  const noun = ui.track === "phrasal" ? "um phrasal verb" : ui.track === "frases" ? "uma frase" : "uma palavra";
   view.innerHTML = `
     ${note}
     <div class="list-tools">
@@ -443,11 +502,13 @@ function renderList() {
           </div>
           <label class="knew"><input type="checkbox" data-known="${w.id}" ${known.has(w.id) ? "checked" : ""}> Já sei</label>
           <div class="ex" ${ui.hidePt ? "data-reveal" : ""}>
+            ${w.exEn ? `
             ${t.sentence ? '<span class="ex-label">Uma resposta:</span>' : ""}
             <span class="ex-en" lang="en">${esc(w.exEn)}</span>
-            <span class="ex-pt">${esc(w.exPt)}</span>
+            <span class="ex-pt">${esc(w.exPt)}</span>` : ""}
             ${t.sentence ? usesHTML(w) : ""}
           </div>
+          ${ui.track === "ia" ? `<button class="link-btn remove-word" data-remove-word="${w.id}" aria-label="Remover ${esc(w.en)}">Remover</button>` : ""}
         </li>`).join("")}
     </ul>`;
 }
@@ -478,7 +539,7 @@ function cardHTML(w, flipped, { tag = "", sentence = false, againLabel = "Não s
             ${tag ? `<span class="card-tag">${esc(tag)}</span>` : ""}
             <span class="pt-big ${sentence ? "sentence" : ""}">${esc(w.pt)}</span>
             <span class="en-small" lang="en">${esc(w.en)}</span>
-            <p class="ex">${sentence ? '<span class="ex-label">Uma resposta:</span>' : ""}<span lang="en">${esc(w.exEn)}</span><span class="ex-pt">${esc(w.exPt)}</span></p>
+            ${w.exEn ? `<p class="ex">${sentence ? '<span class="ex-label">Uma resposta:</span>' : ""}<span lang="en">${esc(w.exEn)}</span><span class="ex-pt">${esc(w.exPt)}</span></p>` : ""}
             <span class="hint touch-only">Arraste para a direita se sabia, para a esquerda se não</span>
           </div>
         </button>
@@ -679,9 +740,9 @@ function renderQuiz() {
     feedback = `
       <div class="feedback ${q.ok ? "" : "is-wrong"}" role="status">
         <p><b>${esc(title)}</b></p>
-        ${sentence ? '<p class="ex-label">Uma resposta:</p>' : ""}
+        ${w.exEn ? `${sentence ? '<p class="ex-label">Uma resposta:</p>' : ""}
         <p lang="en">${esc(w.exEn)}</p>
-        <p class="ex-pt">${esc(w.exPt)}</p>
+        <p class="ex-pt">${esc(w.exPt)}</p>` : ""}
       </div>
       <div class="next-row"><button class="btn primary" data-action="next-q" id="nextQ">${quiz.pos + 1 === quiz.qs.length ? "Ver resultado" : "Próxima"}</button></div>`;
   }
@@ -745,7 +806,7 @@ function quizEndHTML() {
     title = quiz.score === total ? "Erros corrigidos!" : "Revisão terminada";
     text = "Faça o quiz completo para marcar o dia como concluído.";
   } else if (passed) {
-    title = isEnd ? "Você completou os 30 dias!" : `Dia ${ui.day} concluído!`;
+    title = isEnd ? `Você completou os ${TOTAL_DAYS} dias!` : `Dia ${ui.day} concluído!`;
     text = isEnd
       ? "Agora o mais importante: abra a Revisão todos os dias para não esquecer nada."
       : `Sua melhor nota neste dia é ${best} de ${total}. O que você acertou vai aparecer na Revisão nos próximos dias.`;
@@ -758,7 +819,7 @@ function quizEndHTML() {
       ${[...new Set(quiz.wrong)].map((id) => `<li><b lang="en">${esc(item(id).en)}</b><span>${esc(item(id).pt)}</span></li>`).join("")}
     </ul>` : "";
   let nextBtn = "";
-  if (passed && !isEnd) {
+  if (passed && !isEnd && !(ui.track === "ia" && isLastDayOfTrack)) {
     if (ui.track === "words") nextBtn += '<button class="btn" data-action="go-phrasal">Estudar os phrasal verbs do dia</button>';
     nextBtn += `<button class="btn primary" data-action="next-day">${isLastDayOfTrack ? "Começar as frases (Dia 11)" : "Ir para o próximo dia"}</button>`;
   }
@@ -838,7 +899,7 @@ function renderReview() {
   }
   const c = review.deck[review.pos];
   const tr = TRACKS[c.track];
-  const w = tr.items[c.id];
+  const w = tr.byId.get(c.id);
   view.innerHTML = cardHTML(w, review.flipped, {
     tag: `${tr.tag}, Dia ${w.day}`,
     sentence: tr.sentence,
@@ -910,9 +971,10 @@ function setTrack(key, day) {
 /* =========================================================
    BUSCA
    ========================================================= */
-const SEARCH_INDEX = TRACK_KEYS.flatMap((k) => TRACKS[k].items.map((w) => ({
+const buildSearchIndex = () => TRACK_KEYS.flatMap((k) => TRACKS[k].items.map((w) => ({
   track: k, w, hay: stripAccents(`${w.en} ${w.pt}`.toLowerCase()),
 })));
+let SEARCH_INDEX = buildSearchIndex();
 function openSearch() {
   $("#search").hidden = false;
   document.body.classList.add("no-scroll");
@@ -949,7 +1011,8 @@ function renderSearch(q) {
 }
 function goToItem(track, id) {
   closeSearch();
-  const w = TRACKS[track].items[id];
+  const w = TRACKS[track].byId.get(id);
+  if (!w) return;
   ui.mode = "list";
   setTrack(track, w.day);
   const li = view.querySelector(`.word[data-id="${id}"]`);
@@ -962,11 +1025,172 @@ function goToItem(track, id) {
 }
 
 /* =========================================================
+   MINHAS FRASES (adicionar e apagar, salvas no banco do navegador)
+   ========================================================= */
+function openMine() {
+  $("#mine").hidden = false;
+  document.body.classList.add("no-scroll");
+  renderMine();
+  setTimeout(() => $("#mineForm").elements.en.focus(), 30);
+}
+function closeMine() {
+  $("#mine").hidden = true;
+  document.body.classList.remove("no-scroll");
+}
+function renderMine() {
+  const mine = TRACKS.frases.items.filter((w) => w.mine);
+  $("#mineCount").textContent = !FraseDB.ok
+    ? "Este navegador não deixou abrir o banco de dados, então não dá para adicionar frases aqui."
+    : mine.length
+      ? `Você adicionou ${mine.length} ${mine.length === 1 ? "frase" : "frases"}. Elas ficam salvas neste aparelho e vão junto no backup.`
+      : "Você ainda não adicionou nenhuma frase. Elas entram depois do Dia 30, 10 por dia.";
+  $("#mineList").innerHTML = mine.slice().reverse().map((w) => `
+    <li class="mine-item">
+      <div>
+        <span class="s-en" lang="en">${esc(w.en)}</span>
+        <span class="s-pt">${esc(w.pt)}</span>
+        ${w.exEn ? `<span class="s-meta" lang="en">${esc(w.exEn)}${w.exPt ? ` <span lang="pt-BR">(${esc(w.exPt)})</span>` : ""}</span>` : ""}
+        <span class="s-meta">Dia ${w.day}</span>
+      </div>
+      <button class="link-btn" data-del="${w.id}" aria-label="Apagar a frase ${esc(w.en)}">Apagar</button>
+    </li>`).join("");
+}
+// Lê o banco de novo e atualiza o app todo
+async function reloadDbTrack(key) {
+  setDbTrack(key, await (key === "frases" ? FraseDB : PalavraDB).all());
+  SEARCH_INDEX = buildSearchIndex();
+  if (ui.track === key) { ui.day = clampDay(T(), ui.day); resetSessions(); }
+  review = null;
+  render();
+  renderMine();
+}
+const reloadFrases = () => reloadDbTrack("frases");
+async function addMine(form) {
+  if (!FraseDB.ok) { toast("Não dá para salvar frases neste navegador."); return; }
+  const f = Object.fromEntries(["en", "pt", "exEn", "exPt"].map((k) => [k, form.elements[k].value.trim()]));
+  if (!f.en || !f.pt) return;
+  if (TRACKS.frases.items.some((w) => normalizeAnswer(w.en) === normalizeAnswer(f.en))) {
+    toast("Essa frase já está no app.");
+    return;
+  }
+  try {
+    const rec = await FraseDB.add(f);
+    await reloadFrases();
+    form.reset();
+    form.elements.en.focus();
+    toast(`Frase adicionada no Dia ${TRACKS.frases.byId.get(rec.id).day}.`);
+  } catch (e) {
+    toast("Não foi possível salvar a frase.");
+  }
+}
+async function removeMine(id) {
+  const w = TRACKS.frases.byId.get(id);
+  if (!w || !confirm(`Apagar a frase "${w.en}"?`)) return;
+  try {
+    await FraseDB.remove(id);
+    state.tracks.frases.known.delete(id);
+    delete state.srs[skey("frases", id)];
+    save();
+    await reloadFrases();
+    toast("Frase apagada.");
+  } catch (e) {
+    toast("Não foi possível apagar a frase.");
+  }
+}
+
+/* =========================================================
+   IA (Gemini, pela função da Vercel em api/sugerir.js)
+   Manda o que você já sabe e recebe 10 palavras ou frases novas.
+   ========================================================= */
+const AI_KEY = "ingles300-senha-ia";
+let aiBusy = false;
+const knownEn = (key) => TRACKS[key].items.filter((w) => state.tracks[key].known.has(w.id)).map((w) => w.en);
+
+async function callAI(tipo) {
+  const body = {
+    tipo,
+    conhecidas: [...knownEn("words"), ...knownEn("phrasal"), ...knownEn("ia")],
+    existentes: tipo === "frases"
+      ? TRACKS.frases.items.map((w) => w.en)
+      : [...TRACKS.words.items, ...TRACKS.phrasal.items, ...TRACKS.ia.items].map((w) => w.en),
+  };
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    let senha = "";
+    try { senha = localStorage.getItem(AI_KEY) || ""; } catch (e) { /* ignora */ }
+    const res = await fetch("api/sugerir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-App-Senha": senha },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 401) {
+      const nova = prompt("Digite a senha da IA (a mesma que está em APP_SENHA na Vercel):");
+      if (!nova) throw new Error("Sem senha, não dá para usar a IA.");
+      try { localStorage.setItem(AI_KEY, nova); } catch (e) { /* ignora */ }
+      continue;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.erro || "A IA não respondeu. Tente de novo.");
+    return data.itens || [];
+  }
+  throw new Error("Senha errada.");
+}
+
+// Gera palavras (aba Minhas palavras) ou frases (tela Minhas frases)
+async function generateWithAI(tipo, btn) {
+  if (aiBusy) return;
+  if (!FraseDB.ok) { toast("Este navegador não deixou abrir o banco de dados."); return; }
+  if (!navigator.onLine) { toast("Sem internet. A IA precisa de conexão."); return; }
+  aiBusy = true;
+  const label = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "A IA está pensando..."; }
+  try {
+    const track = tipo === "frases" ? "frases" : "ia";
+    const seen = new Set([...TRACK_KEYS.flatMap((k) => TRACKS[k].items.map((w) => normalizeAnswer(w.en)))]);
+    const novos = (await callAI(tipo)).filter((f) => {
+      const k = normalizeAnswer(String(f.en || ""));
+      if (!k || !f.pt || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    if (!novos.length) { toast("A IA não trouxe nada novo. Tente de novo."); return; }
+    const recs = await (track === "frases" ? FraseDB : PalavraDB).addMany(novos);
+    await reloadDbTrack(track);
+    const day = TRACKS[track].byId.get(recs[0].id).day;
+    if (track === "ia") setTrack("ia", day);
+    toast(`${recs.length} ${tipo === "frases" ? "frases novas" : "palavras novas"} no Dia ${day}.`);
+  } catch (e) {
+    toast(e.message || "Não foi possível falar com a IA.");
+  } finally {
+    aiBusy = false;
+    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+
+async function removeWord(id) {
+  const w = TRACKS.ia.byId.get(id);
+  if (!w || !confirm(`Remover "${w.en}" das suas palavras?`)) return;
+  try {
+    await PalavraDB.remove(id);
+    state.tracks.ia.known.delete(id);
+    delete state.srs[skey("ia", id)];
+    save();
+    await reloadDbTrack("ia");
+  } catch (e) {
+    toast("Não foi possível remover a palavra.");
+  }
+}
+
+/* =========================================================
    BACKUP
    ========================================================= */
 function exportBackup() {
   save();
-  const blob = new Blob([JSON.stringify(serialize(), null, 1)], { type: "application/json" });
+  const data = serialize();
+  // as frases que você adicionou e as palavras da IA vão junto no arquivo
+  const plain = ({ id, en, pt, exEn, exPt }) => ({ id, en, pt, exEn, exPt });
+  data.minhasFrases = TRACKS.frases.items.filter((w) => w.mine).map(plain);
+  data.minhasPalavras = TRACKS.ia.items.map(plain);
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -979,7 +1203,7 @@ function exportBackup() {
 }
 function importBackup(file) {
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     let data;
     try { data = JSON.parse(reader.result); } catch (e) { data = null; }
     if (!data || typeof data !== "object" || !data.tracks || typeof data.tracks !== "object") {
@@ -988,6 +1212,10 @@ function importBackup(file) {
     }
     if (!confirm("Isso substitui o seu progresso atual pelo do backup. Continuar?")) return;
     try {
+      if (Array.isArray(data.minhasFrases) && FraseDB.ok) await FraseDB.replaceMine(data.minhasFrases);
+      if (Array.isArray(data.minhasPalavras) && FraseDB.ok) await PalavraDB.replaceMine(data.minhasPalavras);
+      delete data.minhasFrases;
+      delete data.minhasPalavras;
       localStorage.setItem(STORE_KEY, JSON.stringify(data));
       location.reload();
     } catch (e) {
@@ -1044,6 +1272,9 @@ view.addEventListener("click", (e) => {
   const unb = e.target.closest("[data-unbuild]");
   if (unb && !unb.disabled) { quiz.qs[quiz.pos].built.splice(Number(unb.dataset.unbuild), 1); renderQuiz(); return; }
 
+  const rm = e.target.closest("[data-remove-word]");
+  if (rm) { removeWord(Number(rm.dataset.removeWord)); return; }
+
   const act = e.target.closest("[data-action]");
   if (!act || act.disabled) return;
   switch (act.dataset.action) {
@@ -1063,6 +1294,8 @@ view.addEventListener("click", (e) => {
       break;
     case "go-phrasal": ui.mode = "list"; setTrack("phrasal", ui.day); scrollToContent(true); break;
     case "go-study": setMode("list"); break;
+    case "open-mine": openMine(); break;
+    case "ai-words": generateWithAI("palavras", act); break;
     case "practice": startReview(true); renderReview(); break;
     case "build-clear": quiz.qs[quiz.pos].built = []; renderQuiz(); break;
     case "build-check": {
@@ -1171,6 +1404,7 @@ view.addEventListener("pointercancel", endDrag);
 /* ---------- Teclado (computador) ---------- */
 document.addEventListener("keydown", (e) => {
   if (!$("#search").hidden) { if (e.key === "Escape") closeSearch(); return; }
+  if (!$("#mine").hidden) { if (e.key === "Escape") closeMine(); return; }
   if (e.target.matches("input, textarea")) return;
   if (e.key === "/") { e.preventDefault(); openSearch(); return; }
   const deck = activeDeck();
@@ -1199,6 +1433,17 @@ $("#searchResults").addEventListener("click", (e) => {
   goToItem(track, Number(id));
 });
 $("#search").addEventListener("click", (e) => { if (e.target.id === "search") closeSearch(); });
+
+/* ---------- Minhas frases ---------- */
+$("#mineOpen").addEventListener("click", openMine);
+$("#mineClose").addEventListener("click", closeMine);
+$("#mineForm").addEventListener("submit", (e) => { e.preventDefault(); addMine(e.target); });
+$("#mineAi").addEventListener("click", (e) => generateWithAI("frases", e.currentTarget));
+$("#mineList").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-del]");
+  if (b) removeMine(Number(b.dataset.del));
+});
+$("#mine").addEventListener("click", (e) => { if (e.target.id === "mine") closeMine(); });
 
 /* ---------- Backup, instalar e recomeçar ---------- */
 $("#exportBtn").addEventListener("click", exportBackup);
