@@ -217,10 +217,12 @@ function streak() {
   while (state.activity.has(d)) { n++; d = addDays(d, -1); }
   return n;
 }
-// Registra uma resposta em qualquer lugar do app
-function record(track, id, ok) {
+// Registra uma resposta em qualquer lugar do app.
+// mark = false (no quiz): acertar ou errar não mexe no "Já sei", só na revisão.
+// "Já sei" é só o que você mesmo marca (na lista, nos flashcards ou na revisão).
+function record(track, id, ok, mark = true) {
   const s = state.tracks[track];
-  if (ok) s.known.add(id); else s.known.delete(id);
+  if (mark) { if (ok) s.known.add(id); else s.known.delete(id); }
   srsGrade(track, id, ok);
   markActivity();
   save();
@@ -808,7 +810,7 @@ function answerQuiz(ok, extra = {}) {
   if (q.done) return;
   Object.assign(q, extra, { done: true, ok });
   if (ok) quiz.score++; else quiz.wrong.push(q.id);
-  record(ui.track, q.id, ok);
+  record(ui.track, q.id, ok, false);
   speak(item(q.id).en);
   refreshProgress();
   renderQuiz();

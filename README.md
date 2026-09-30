@@ -80,7 +80,8 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
   - *Escrever*: digita em inglês (pequenos erros de digitação são aceitos, com aviso)
   - *Montar a frase*: só nas frases; monta a frase na ordem certa
   
-  Acertando 80%, o dia fica concluído (✓).
+  Acertando 80%, o dia fica concluído (✓). O quiz não marca nada como "Já sei": isso só acontece quando você mesmo
+  marca (na lista, nos flashcards ou na revisão). As respostas do quiz só ajustam quando cada item volta na revisão.
 - **Revisão:** tudo que você marca ou responde entra na revisão. Acertou, a próxima revisão fica mais distante (1, 3, 7, 14, 30 dias). Errou, volta no dia seguinte. Quando não há nada para revisar, dá para fazer um **treino livre**.
 - **Sequência de dias:** mostra quantos dias seguidos você estudou.
 - **Busca:** a lupa no topo procura em inglês ou português nos 600 itens. No computador, a tecla `/` abre a busca.
