@@ -3,9 +3,8 @@
 /* =========================================================
    CONFIGURAÇÃO
    ========================================================= */
-// Deixe null para o Dia 1 ser o dia em que o app foi aberto pela primeira vez.
-// Para fixar uma data, use o formato "AAAA-MM-DD", por exemplo: "2026-09-30".
-const START_DATE = null;
+// O dia em que você está não depende do calendário: depende de quanto você já sabe.
+// Cada 30 palavras sabidas (ou 10 phrasal verbs / frases) avançam um dia.
 const PASS_RATE = 0.8;      // acertar 80% no quiz marca o dia como concluído
 const REVIEW_MAX = 30;      // máximo de itens por sessão de revisão
 const PRACTICE_SIZE = 20;   // itens no treino livre
@@ -92,8 +91,6 @@ const parseISO = (s) => { const [y, m, d] = s.split("-").map(Number); return new
 const todayISO = () => toISO(new Date());
 function addDays(iso, n) { const d = parseISO(iso); d.setDate(d.getDate() + n); return toISO(d); }
 function daysBetween(a, b) { return Math.round((parseISO(b) - parseISO(a)) / 86400000); }
-const fmtShort = (d) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
-const fmtLong = (d) => d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
 /* =========================================================
    ESTADO SALVO (localStorage)
@@ -110,7 +107,7 @@ const saved = loadState();
 const savedTracks = saved.tracks || { words: { known: saved.known, best: saved.best, done: saved.done } };
 
 const state = {
-  startDate: START_DATE || saved.startDate || todayISO(),
+  startDate: saved.startDate || todayISO(), // só informativo: quando você começou
   lastTrack: TRACKS[saved.lastTrack] ? saved.lastTrack : "words",
   showPt: saved.showPt === true, // por padrão a tradução fica escondida
   tracks: {},
@@ -159,9 +156,12 @@ function save() {
 }
 save();
 
-const startDay = parseISO(state.startDate);
-function dateOfDay(n) { const d = new Date(startDay); d.setDate(d.getDate() + n - 1); return d; }
-function todayNumber() { return daysBetween(state.startDate, todayISO()) + 1; }
+// Seu dia atual numa trilha: sabe 60 palavras = Dia 3 (cada 30 é um dia).
+// Conta tudo o que você marcou, de qualquer dia, porque você pode já saber palavras de dias mais à frente.
+function currentDay(t) {
+  const known = state.tracks[t.key].known.size;
+  return Math.min(t.firstDay + Math.floor(known / t.perDay), t.lastDay);
+}
 
 /* =========================================================
    REVISÃO ESPAÇADA E SEQUÊNCIA DE DIAS
@@ -308,9 +308,6 @@ function speak(text) {
    ========================================================= */
 const clampDay = (t, d) => Math.min(Math.max(d, t.firstDay), t.lastDay);
 function initialTrack() {
-  const today = todayNumber();
-  if (today >= TRACKS.frases.firstDay && today <= TRACKS.frases.lastDay) return "frases";
-  if (today < TRACKS.frases.firstDay && state.lastTrack === "frases") return "words";
   return state.lastTrack;
 }
 const ui = {
@@ -320,7 +317,9 @@ const ui = {
   hidePt: !state.showPt,
   quizType: "mean",
 };
-ui.day = clampDay(TRACKS[ui.track], todayNumber());
+ui.day = currentDay(TRACKS[ui.track]);
+// para avisar quando você sobe de dia
+const levels = Object.fromEntries(TRACK_KEYS.map((k) => [k, currentDay(TRACKS[k])]));
 
 let cards = null;  // sessão de flashcards
 let quiz = null;   // sessão de quiz
@@ -331,6 +330,15 @@ const T = () => TRACKS[ui.track];
 const S = () => state.tracks[ui.track];
 const item = (id) => T().byId.get(id);
 const itemsOfDay = (d) => T().items.filter((w) => w.day === d);
+// O que você não aprendeu nos dias que já passou volta no seu dia atual, até você aprender
+const CARRY_MAX = 30;
+function carryOver(d) {
+  if (d !== currentDay(T())) return [];
+  const known = S().known;
+  return T().items.filter((w) => w.day < d && !known.has(w.id)).slice(0, CARRY_MAX);
+}
+// Tudo o que se estuda num dia: o que veio dos dias anteriores + o do próprio dia
+const studyItems = (d) => [...carryOver(d), ...itemsOfDay(d)];
 const knownInDay = (d) => itemsOfDay(d).filter((w) => S().known.has(w.id)).length;
 const totalKnown = () => TRACK_KEYS.reduce((n, k) => n + state.tracks[k].known.size, 0);
 
@@ -338,6 +346,7 @@ const totalKnown = () => TRACK_KEYS.reduce((n, k) => n + state.tracks[k].known.s
    CABEÇALHO, DIAS E ABAS
    ========================================================= */
 function renderHeader() {
+  checkLevelUp();
   const inReview = ui.mode === "review";
   const t = T();
   const n = inReview ? totalKnown() : S().known.size;
@@ -375,18 +384,19 @@ function renderHeader() {
   banner.hidden = due === 0 || inReview;
   $("#reviewBannerText").textContent = `Você tem ${due} ${due === 1 ? "item" : "itens"} para revisar hoje. Revisar é o que faz você não esquecer.`;
 
-  const last = dateOfDay(TOTAL_DAYS).toLocaleDateString("pt-BR");
-  $("#startInfo").textContent = `Seu Dia 1 foi ${dateOfDay(1).toLocaleDateString("pt-BR")}. O Dia ${TOTAL_DAYS} será ${last}.`;
+  const tw = TRACKS.words;
+  $("#startInfo").textContent = `Você começou em ${parseISO(state.startDate).toLocaleDateString("pt-BR")}. `
+    + `Sabe ${state.tracks.words.known.size} de ${tw.items.length} palavras: está no Dia ${currentDay(tw)}.`;
 }
 
 function renderDays() {
   const t = T();
-  const today = todayNumber();
+  const cur = currentDay(t);
   let html = "";
   for (let d = t.firstDay; d <= t.lastDay; d++) {
-    const cls = ["day-tile", d === today && "is-today", d === ui.day && "is-active"].filter(Boolean).join(" ");
+    const cls = ["day-tile", d === cur && "is-today", d === ui.day && "is-active"].filter(Boolean).join(" ");
     const pct = (knownInDay(d) / itemsOfDay(d).length) * 100;
-    const label = d === today ? "hoje" : fmtShort(dateOfDay(d));
+    const label = d === cur ? "você" : `${knownInDay(d)}/${itemsOfDay(d).length}`;
     html += `<button class="${cls}" data-day="${d}" aria-current="${d === ui.day ? "true" : "false"}" aria-label="Dia ${d}, ${label}">
       <span class="n">${d}</span>
       <span class="d">${label}</span>
@@ -404,19 +414,24 @@ function renderDays() {
 
 function renderDayHead() {
   const t = T();
-  const today = todayNumber();
+  const cur = currentDay(t);
+  const total = S().known.size;
   const dayItems = itemsOfDay(ui.day);
   const first = dayItems[0].n;
   const last = dayItems[dayItems.length - 1].n;
   let when;
-  if (ui.day === today) when = `Hoje, ${fmtLong(dateOfDay(ui.day))}.`;
-  else if (ui.day > today) when = `Previsto para ${fmtLong(dateOfDay(ui.day))}. Pode adiantar se quiser.`;
-  else when = `Era o dia de ${fmtLong(dateOfDay(ui.day))}. Bom momento para revisar.`;
+  if (ui.day === cur) when = `É o seu dia atual: você já sabe ${total} ${t.noun} no total.`;
+  else if (ui.day > cur) {
+    const need = (ui.day - t.firstDay) * t.perDay;
+    when = `Você chega aqui quando souber ${need} ${t.noun} (sabe ${total}). Pode adiantar se já conhece algumas.`;
+  } else when = "Você já passou deste dia. Bom momento para revisar.";
   const noun = t.noun.charAt(0).toUpperCase() + t.noun.slice(1);
   $("#dayTitle").textContent = `Dia ${ui.day}`;
   $("#dayTheme").textContent = t.themes[ui.day - t.firstDay]
     || (ui.track === "frases" ? "Frases que você adicionou" : ui.track === "ia" ? "Palavras escolhidas pela IA" : "");
-  $("#dayMeta").textContent = `${noun} ${first} a ${last}. ${when} Você já sabe ${knownInDay(ui.day)} de ${dayItems.length}.`;
+  const carry = carryOver(ui.day).length;
+  const extra = carry ? ` Mais ${carry} de dias anteriores que você ainda não sabe.` : "";
+  $("#dayMeta").textContent = `${noun} ${first} a ${last}. ${when} Neste dia você sabe ${knownInDay(ui.day)} de ${dayItems.length}.${extra}`;
 }
 
 function renderModes() {
@@ -441,6 +456,15 @@ function render() {
   if (ui.mode === "review") { if (!review) startReview(false); renderReview(); }
 }
 function refreshProgress() { renderHeader(); if (T().items.length) { renderDays(); renderDayHead(); } }
+// Avisa quando o que você sabe faz você subir de dia (roda a cada atualização do cabeçalho)
+function checkLevelUp() {
+  for (const k of TRACK_KEYS) {
+    const t = TRACKS[k];
+    const cur = currentDay(t);
+    if (cur > levels[k] && t.items.length) toast(`Você chegou ao Dia ${cur} ${k === "words" ? "das palavras" : `de ${t.name}`}! 🎉`);
+    levels[k] = cur;
+  }
+}
 
 /* =========================================================
    MODO LISTA
@@ -484,17 +508,9 @@ function renderList() {
   const known = S().known;
   // o que você ainda não sabe fica em cima; o que já marcou vai para baixo
   const words = [...itemsOfDay(ui.day)].sort((a, b) => known.has(a.id) - known.has(b.id));
-  const note = { phrasal: PHRASAL_NOTE, frases: FRASES_NOTE, ia: IA_NOTE }[ui.track] || "";
-  const noun = ui.track === "phrasal" ? "um phrasal verb" : ui.track === "frases" ? "uma frase" : "uma palavra";
-  view.innerHTML = `
-    ${note}
-    <div class="list-tools">
-      <label class="toggle"><input type="checkbox" id="showPt" ${ui.hidePt ? "" : "checked"}> Mostrar todas as traduções</label>
-      ${ui.hidePt ? `<p class="list-hint">Tente lembrar o significado. Toque em ${noun} para conferir e marque <b>Já sei</b> se acertou.</p>` : ""}
-      <p class="list-hint small">Suas marcações ficam salvas neste aparelho.</p>
-    </div>
-    <ul class="wordlist ${ui.hidePt ? "hide-pt" : ""} ${t.sentence ? "is-sentences" : ""}">
-      ${words.map((w) => `
+  const carry = carryOver(ui.day);
+  const listCls = `wordlist ${ui.hidePt ? "hide-pt" : ""} ${t.sentence ? "is-sentences" : ""}`;
+  const itemLI = (w) => `
         <li class="word ${known.has(w.id) ? "is-known" : ""}" data-id="${w.id}">
           ${speakBtn(w.en)}
           <div class="word-text" ${ui.hidePt ? `data-reveal role="button" tabindex="0" aria-expanded="false" aria-label="Ver a tradução de ${esc(w.en)}"` : ""}>
@@ -510,8 +526,21 @@ function renderList() {
             ${t.sentence ? usesHTML(w) : ""}
           </div>
           ${ui.track === "ia" ? `<button class="link-btn remove-word" data-remove-word="${w.id}" aria-label="Remover ${esc(w.en)}">Remover</button>` : ""}
-        </li>`).join("")}
-    </ul>`;
+        </li>`;
+  const note = { phrasal: PHRASAL_NOTE, frases: FRASES_NOTE, ia: IA_NOTE }[ui.track] || "";
+  const noun = ui.track === "phrasal" ? "um phrasal verb" : ui.track === "frases" ? "uma frase" : "uma palavra";
+  view.innerHTML = `
+    ${note}
+    <div class="list-tools">
+      <label class="toggle"><input type="checkbox" id="showPt" ${ui.hidePt ? "" : "checked"}> Mostrar todas as traduções</label>
+      ${ui.hidePt ? `<p class="list-hint">Tente lembrar o significado. Toque em ${noun} para conferir e marque <b>Já sei</b> se acertou.</p>` : ""}
+      <p class="list-hint small">Suas marcações ficam salvas neste aparelho.</p>
+    </div>
+    ${carry.length ? `
+      <h3 class="list-section">Ainda não sabe, de dias anteriores <span>(${carry.length})</span></h3>
+      <ul class="${listCls} is-carry">${carry.map(itemLI).join("")}</ul>
+      <h3 class="list-section">${t.noun.charAt(0).toUpperCase() + t.noun.slice(1)} do Dia ${ui.day}</h3>` : ""}
+    <ul class="${listCls}">${words.map(itemLI).join("")}</ul>`;
 }
 
 // Depois de marcar "Já sei", o item desce para o fim da lista (e sobe de volta se desmarcar)
@@ -587,7 +616,7 @@ function answerActive(knew) {
    ========================================================= */
 function startCards() {
   const known = S().known;
-  const ids = itemsOfDay(ui.day).map((w) => w.id);
+  const ids = studyItems(ui.day).map((w) => w.id);
   // primeiro o que você ainda não sabe
   const deck = [...shuffle(ids.filter((id) => !known.has(id))), ...shuffle(ids.filter((id) => known.has(id)))];
   cards = { deck, pos: 0, flipped: false, got: new Set() };
@@ -653,7 +682,7 @@ function makeTokens(sentence) {
 
 function startQuiz(onlyIds) {
   ensureQuizType();
-  const dayIds = itemsOfDay(ui.day).map((w) => w.id);
+  const dayIds = studyItems(ui.day).map((w) => w.id);
   const ids = shuffle(onlyIds || dayIds);
   quiz = {
     retry: Boolean(onlyIds),
@@ -974,8 +1003,8 @@ function setTrack(key, day) {
   save();
   const t = TRACKS[key];
   if (day !== undefined) ui.day = clampDay(t, day);
-  // entre Palavras e Phrasal verbs mantém o mesmo dia; nas Frases vai para o dia de hoje
-  else if (changed && (ui.day < t.firstDay || ui.day > t.lastDay)) ui.day = clampDay(t, todayNumber());
+  // cada trilha tem o seu progresso: ao trocar, vai para o seu dia atual nela
+  else if (changed) ui.day = currentDay(t);
   if (ui.mode === "review") ui.mode = "list";
   resetSessions();
   render();
@@ -1469,7 +1498,7 @@ $("#importFile").addEventListener("change", (e) => {
   e.target.value = "";
 });
 $("#resetBtn").addEventListener("click", () => {
-  if (!confirm("Isso apaga todo o seu progresso e faz o Dia 1 começar hoje. Se quiser guardar, baixe um backup antes. Continuar?")) return;
+  if (!confirm("Isso apaga todo o seu progresso e você volta para o Dia 1. Se quiser guardar, baixe um backup antes. Continuar?")) return;
   try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignora */ }
   location.reload();
 });

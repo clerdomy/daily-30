@@ -65,7 +65,11 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
 
 ## Como funciona
 
-- **O Dia 1 é o dia em que você abre o app pela primeira vez.** Você pode ir para qualquer dia quando quiser.
+- **Você avança pelo que já sabe, não pelo calendário.** Cada 30 palavras marcadas como sabidas (ou 10 phrasal
+  verbs / 10 frases) avançam um dia: quem sabe 60 palavras está no Dia 3. Conta qualquer palavra, de qualquer dia,
+  e você pode abrir qualquer dia quando quiser, para adiantar ou revisar.
+- **O que você não aprendeu passa para o dia seguinte.** No seu dia atual aparecem primeiro as palavras dos dias
+  anteriores que você ainda não marcou (até 30), também nos flashcards e no quiz, até você aprender.
 - **Lista:** a tradução começa escondida. Tente lembrar, toque para conferir e marque "Já sei".
 - **Flashcards:** vire a carta e arraste para a direita (sei) ou para a esquerda (não sei).
 - **Quiz**, com 5 tipos:
@@ -92,7 +96,6 @@ levar o progresso para outro celular ou recuperar depois de limpar o navegador.
 
 No topo do `app.js`:
 
-- `START_DATE` – fixa a data do Dia 1, por exemplo `"2026-09-30"`
 - `PASS_RATE` – nota mínima para concluir um dia (padrão 0.8)
 - `INTERVALS` – os intervalos da revisão, em dias
 
