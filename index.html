@@ -89,6 +89,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
         <span>Falar</span>
       </button>
+      <button role="tab" data-mode="read">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z"/></svg>
+        <span>Ler</span>
+      </button>
       <button role="tab" data-mode="review">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
         <span>Revisão</span>
@@ -141,6 +145,11 @@
       <p class="mine-count" id="mineCount"></p>
       <ul class="mine-list" id="mineList"></ul>
     </div>
+  </div>
+
+  <div class="sheet" id="sheet" hidden role="dialog" aria-label="Tradução">
+    <button class="link-btn sheet-close" data-sheet-close aria-label="Fechar">Fechar</button>
+    <div id="sheetBody"></div>
   </div>
 
   <div class="toast" id="toast" role="status" hidden></div>

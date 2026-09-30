@@ -61,7 +61,8 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
 - `words.js` – 300 palavras (Dias 1 a 10)
 - `phrasal.js` – 100 phrasal verbs (Dias 1 a 10)
 - `frases.js` – 200 frases com respostas (Dias 11 a 30); na primeira visita elas são copiadas para o banco do navegador
-- `db.js` – banco de dados no navegador (IndexedDB) com as frases e as suas palavras; carrega o `app.js` depois de abrir o banco
+- `db.js` – banco de dados no navegador (IndexedDB) com as frases, as suas palavras e os livros; carrega o `app.js` e o `leitura.js` depois de abrir o banco
+- `leitura.js` – modo Ler: biblioteca, leitor de txt/epub/pdf, textos da IA e tradução ao tocar
 - `api/sugerir.js` – função da Vercel que pede palavras e frases novas à IA (OpenRouter)
 - `api/backup.js` – função da Vercel que guarda e devolve o backup automático (Vercel Blob, arquivo privado)
 - `manifest.webmanifest`, `sw.js` e `icons/` – deixam o app instalável e offline
@@ -92,6 +93,11 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
   não foi reconhecida. Usa o reconhecimento de voz do navegador (Chrome ou Safari) e precisa de internet.
   Para traduzir palavras novas usa o Google Tradutor (endereço público, sem conta; pode parar de funcionar sem aviso)
   e, se ele falhar, a IA.
+- **Ler:** sua biblioteca de leitura. Abra um livro do celular (**.txt**, **.epub** ou **.pdf** com texto) ou peça
+  para a IA escrever um texto no nível **básico, intermediário ou avançado** (com tema, se quiser). Na leitura, toque
+  numa palavra para ver a tradução, ouvir (normal ou devagar 🐢) e ver a frase traduzida; selecione um trecho para
+  traduzir a frase inteira. Palavras novas podem ir para Minhas palavras. O app lembra a página em que você parou.
+  Os livros ficam só neste aparelho (não vão no backup). PDF e EPUB usam bibliotecas baixadas do cdnjs na primeira vez.
 - **Revisão:** tudo que você marca ou responde entra na revisão. Acertou, a próxima revisão fica mais distante (1, 3, 7, 14, 30 dias). Errou, volta no dia seguinte. Quando não há nada para revisar, dá para fazer um **treino livre**.
 - **Sequência de dias:** mostra quantos dias seguidos você estudou.
 - **Busca:** a lupa no topo procura em inglês ou português nos 600 itens. No computador, a tecla `/` abre a busca.

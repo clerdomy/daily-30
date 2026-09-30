@@ -5,10 +5,11 @@
    - frases: na primeira visita, as 200 frases de frases.js são copiadas para cá.
      As que você adicionar ficam salvas só neste aparelho.
    - palavras: as palavras novas que a IA sugeriu para você.
-   Tudo vai junto no backup do progresso.
+   - livros: livros que você abriu e textos que a IA escreveu, já divididos em páginas.
+   Frases e palavras vão junto no backup do progresso; os livros ficam só neste aparelho.
    ========================================================= */
 const DB_NAME = "ingles30-db";
-const DB_VERSION = 2; // versão 2 criou a tabela "palavras"
+const DB_VERSION = 3; // versão 2 criou a tabela "palavras", versão 3 a "livros"
 let dbPromise = null;
 
 function openDB() {
@@ -17,7 +18,7 @@ function openDB() {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
-        for (const name of ["frases", "palavras"]) {
+        for (const name of ["frases", "palavras", "livros"]) {
           if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: "id" });
         }
       };
@@ -65,6 +66,13 @@ function makeStore(name) {
     remove(id) {
       return run("readwrite", (s) => { s.delete(id); });
     },
+    // Guarda um registro inteiro como está (usado pelos livros)
+    put(rec) {
+      return run("readwrite", (s) => { s.put(rec); });
+    },
+    get(id) {
+      return run("readonly", (s) => { const r = s.get(id); return () => r.result; });
+    },
     // Usado ao restaurar um backup: troca os seus itens pelos do arquivo
     async replaceMine(mine) {
       const list = await all();
@@ -90,6 +98,7 @@ const FraseDB = {
   },
 };
 const PalavraDB = makeStore("palavras");
+const LivroDB = makeStore("livros");
 
 // Carrega os dados do banco e só então inicia o app
 (async () => {
@@ -103,7 +112,11 @@ const PalavraDB = makeStore("palavras");
     window.FRASES_LIST = FraseDB.seedList();
     window.PALAVRAS_LIST = [];
   }
-  const s = document.createElement("script");
-  s.src = "app.js";
-  document.body.appendChild(s);
+  // async = false mantém a ordem: primeiro app.js, depois leitura.js
+  for (const src of ["app.js", "leitura.js"]) {
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = false;
+    document.body.appendChild(s);
+  }
 })();

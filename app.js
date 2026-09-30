@@ -306,13 +306,13 @@ function pickVoice() {
   enVoice = voices.find((v) => v.lang === "en-US") || voices.find((v) => v.lang.startsWith("en")) || null;
 }
 if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function speak(text) {
+function speak(text, rate) {
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "en-US";
   if (enVoice) u.voice = enVoice;
-  u.rate = isSentence(text) ? 0.9 : 0.85;
+  u.rate = rate || (isSentence(text) ? 0.9 : 0.85); // rate menor = mais devagar
   speechSynthesis.speak(u);
 }
 
@@ -341,7 +341,7 @@ const view = $("#view");
 
 const T = () => TRACKS[ui.track];
 // Revisão e Falar valem para o app todo, sem trilha nem dia
-const isGlobalMode = () => ui.mode === "review" || ui.mode === "voice";
+const isGlobalMode = () => ["review", "voice", "read"].includes(ui.mode);
 const S = () => state.tracks[ui.track];
 const item = (id) => T().byId.get(id);
 const itemsOfDay = (d) => T().items.filter((w) => w.day === d);
@@ -374,10 +374,13 @@ function renderHeader() {
   const t = T();
   const n = inReview ? totalKnown() : S().known.size;
   const total = inReview ? TOTAL_ITEMS : t.items.length;
-  $("#trackTitle").textContent = ui.mode === "voice" ? "Falar" : inReview ? "Revisão" : t.title;
-  $("#trackSub").textContent = ui.mode === "voice"
-    ? "Fale uma palavra em inglês e mostre que sabe o que ela quer dizer."
-    : inReview ? "Reveja o que você já estudou na hora certa, para não esquecer." : t.sub;
+  const GLOBAL_TITLES = {
+    voice: ["Falar", "Fale uma palavra em inglês e mostre que sabe o que ela quer dizer."],
+    read: ["Ler", "Leia livros e textos no seu nível. Toque numa palavra para traduzir e ouvir."],
+    review: ["Revisão", "Reveja o que você já estudou na hora certa, para não esquecer."],
+  };
+  $("#trackTitle").textContent = inReview ? GLOBAL_TITLES[ui.mode][0] : t.title;
+  $("#trackSub").textContent = inReview ? GLOBAL_TITLES[ui.mode][1] : t.sub;
   $("#knownCount").textContent = n;
   $("#totalCount").textContent = total;
   $("#learnedWord").textContent = inReview ? "itens aprendidos no total" : t.learned;
@@ -474,6 +477,7 @@ function render() {
   if (ui.mode === "quiz") { if (!quiz) startQuiz(); renderQuiz(); }
   if (ui.mode === "review") { if (!review) startReview(false); renderReview(); }
   if (ui.mode === "voice") renderVoice();
+  if (ui.mode === "read") renderRead(); // em leitura.js
 }
 function refreshProgress() { renderHeader(); if (T().items.length) { renderDays(); renderDayHead(); } }
 // Avisa quando o que você sabe faz você subir de dia (roda a cada atualização do cabeçalho)
@@ -1194,6 +1198,7 @@ function setDay(d) {
 }
 function setMode(m) {
   if (m !== "voice") stopListening();
+  if (m !== "read" && typeof closeSheet === "function") closeSheet();
   ui.mode = m;
   if (m === "review") review = null; // sempre recalcula o que venceu
   render();

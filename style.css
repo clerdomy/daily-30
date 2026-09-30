@@ -238,7 +238,7 @@ body.is-review .review-banner { display: none; }
   bottom: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: var(--paper);
   border-top: 1px solid var(--line);
   padding: 6px 8px calc(6px + var(--safe-bottom));
@@ -326,6 +326,46 @@ body.is-review .review-banner { display: none; }
   overflow-wrap: anywhere;
 }
 .word .pt { display: block; font-weight: 700; color: var(--cobalt); }
+/* ---------- Ler ---------- */
+.read-busy { padding: 10px 14px; border-radius: var(--radius-sm); background: var(--cobalt-soft); font-weight: 700; }
+.read-actions { display: grid; gap: 12px; }
+.read-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; }
+.read-card h3, .read-list-title { font-family: var(--display); margin: 0 0 6px; }
+.read-list-title { margin-top: 22px; }
+.file-btn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.book-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.book { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+.book-open { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 12px 0; display: grid; gap: 2px; color: var(--ink); }
+.book-title { font-family: var(--display); font-weight: 800; font-size: 1.1rem; overflow-wrap: anywhere; }
+.book-tag { font-size: 0.75rem; font-weight: 700; color: var(--cobalt); }
+.read-head h3 { font-family: var(--display); font-size: 1.3rem; margin: 4px 0; }
+.read-page { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 16px; font-size: 1.15rem; line-height: 1.7; }
+.read-page p { margin: 0 0 1em; }
+.read-page p:last-child { margin-bottom: 0; }
+.read-page .w { cursor: pointer; border-radius: 4px; }
+.read-page .w.is-picked { background: var(--marker); color: #16213A; }
+.read-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0; }
+.read-nav .btn { min-height: 44px; padding: 6px 16px; }
+.read-count { color: var(--muted); font-weight: 700; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  max-height: 70vh; overflow-y: auto;
+  background: var(--paper); border-top: 1px solid var(--line);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -8px 30px rgba(14, 21, 39, 0.18);
+  padding: 14px 16px calc(var(--tabbar-h) + var(--safe-bottom) + 14px);
+}
+.sheet[hidden] { display: none; }
+.sheet-close { float: right; }
+.sheet-word { display: flex; align-items: center; gap: 8px; }
+.sheet-en { font-family: var(--display); font-weight: 800; font-size: 1.6rem; margin: 0; }
+.sheet-pt { font-weight: 700; color: var(--cobalt); font-size: 1.15rem; margin: 6px 0 10px; }
+.sheet-sentence { border-top: 1px solid var(--line); padding-top: 8px; margin-bottom: 10px; }
+.sheet-sentence p { margin: 2px 0; }
+.sheet-sel { font-size: 1.1rem; margin: 0; }
+.sheet .speak { display: inline-grid; vertical-align: middle; }
+.speak.slow { font-size: 1.1rem; line-height: 1; }
+
 /* ---------- Falar ---------- */
 .voice { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 16px 0; }
 .mic-btn {
