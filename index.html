@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#EAF0F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0E1527" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="300 palavras, 100 phrasal verbs e 200 frases em 30 dias, com revisão para não esquecer.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Inglês 30">
+  <title>Inglês em 30 dias</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/favicon-64.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <div class="brand-row">
+          <h1 id="trackTitle">300 palavras</h1>
+          <button class="icon-btn" id="searchOpen" aria-label="Buscar palavra ou frase">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          </button>
+        </div>
+        <p id="trackSub">As palavras mais usadas do inglês, 30 por dia.</p>
+      </div>
+      <div class="overall" aria-live="polite">
+        <p class="streak" id="streak"></p>
+        <p><strong id="knownCount">0</strong> de <span id="totalCount">300</span> <span id="learnedWord">aprendidas</span></p>
+        <div class="bar" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="300" id="knownBarWrap">
+          <span id="knownBar"></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="review-banner" id="reviewBanner" hidden>
+      <p id="reviewBannerText"></p>
+      <button class="btn primary" data-goto-review>Revisar agora</button>
+    </div>
+
+    <div class="tracks" role="tablist" aria-label="O que estudar">
+      <button role="tab" data-track="words">
+        <span class="t-name">Palavras</span>
+        <span class="t-count" id="count-words">0/300</span>
+      </button>
+      <button role="tab" data-track="phrasal">
+        <span class="t-name">Phrasal verbs</span>
+        <span class="t-count" id="count-phrasal">0/100</span>
+      </button>
+      <button role="tab" data-track="frases">
+        <span class="t-name">Frases</span>
+        <span class="t-count" id="count-frases">0/200</span>
+      </button>
+    </div>
+
+    <nav class="days" id="days" aria-label="Escolha o dia"></nav>
+
+    <section class="day-head">
+      <h2 id="dayTitle">Dia 1</h2>
+      <p class="day-theme" id="dayTheme"></p>
+      <p id="dayMeta"></p>
+    </section>
+
+    <nav class="modes" role="tablist" aria-label="Modo de estudo">
+      <button role="tab" data-mode="list">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span>Lista</span>
+      </button>
+      <button role="tab" data-mode="cards">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg>
+        <span>Flashcards</span>
+      </button>
+      <button role="tab" data-mode="quiz">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5M12 17.5h.01"/></svg>
+        <span>Quiz</span>
+      </button>
+      <button role="tab" data-mode="review">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+        <span>Revisão</span>
+        <span class="badge" id="reviewBadge" hidden>0</span>
+      </button>
+    </nav>
+
+    <main id="view"></main>
+
+    <footer class="foot">
+      <p id="startInfo"></p>
+      <div class="foot-actions">
+        <button class="link-btn" id="installBtn" hidden>Instalar o app no celular</button>
+        <button class="link-btn" id="exportBtn">Baixar backup do progresso</button>
+        <button class="link-btn" id="importBtn">Restaurar backup</button>
+        <button class="link-btn" id="resetBtn">Apagar progresso e recomeçar hoje</button>
+      </div>
+      <p class="ios-hint" id="iosHint" hidden>No iPhone: toque em Compartilhar e depois em "Adicionar à Tela de Início" para instalar.</p>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+    </footer>
+  </div>
+
+  <div class="search" id="search" hidden role="dialog" aria-modal="true" aria-label="Buscar">
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <input id="searchInput" type="search" placeholder="Buscar em inglês ou português" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+      <button class="link-btn" id="searchClose">Fechar</button>
+    </div>
+    <ul class="search-results" id="searchResults" aria-live="polite"></ul>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="words.js"></script>
+  <script src="phrasal.js"></script>
+  <script src="frases.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "Inglês em 30 dias",
+  "short_name": "Inglês 30",
+  "description": "300 palavras, 100 phrasal verbs e 200 frases em 30 dias, com revisão para não esquecer.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EAF0F7",
+  "theme_color": "#2446D8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
