@@ -153,6 +153,7 @@ function serialize() {
 }
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (e) { /* ignora */ }
+  document.dispatchEvent(new Event("progress-saved")); // o backup automático escuta isso
 }
 save();
 
@@ -1089,6 +1090,18 @@ function startListening() {
   try { recog.start(); } catch (e) { recog = null; voiceMsg("Não foi possível abrir o microfone."); }
 }
 
+// Google Tradutor (endereço público, sem conta). Pode parar de funcionar sem aviso:
+// por isso a IA fica de reserva.
+async function googleTranslate(text) {
+  const url = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=en&tl=pt&q=${encodeURIComponent(text)}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("Google Tradutor indisponível");
+  const data = await r.json();
+  const first = Array.isArray(data) ? data[0] : null;
+  const pt = Array.isArray(first) ? first[0] : first;
+  return typeof pt === "string" ? pt.trim() : "";
+}
+
 async function handleHeard(alts) {
   // se alguma das opções que o navegador entendeu já está no app, usa ela
   for (const a of alts) {
@@ -1099,7 +1112,15 @@ async function handleHeard(alts) {
   if (heard.split(/\s+/).length > 4) return voiceMsg(`Entendi "${heard}". Fale só uma palavra ou uma expressão curta.`);
   voice = { step: "thinking", heard, msg: "" };
   renderVoice();
-  if (!FraseDB.ok || !navigator.onLine) return voiceMsg(`"${heard}" não está no app, e sem internet não dá para traduzir.`);
+  if (!navigator.onLine) return voiceMsg(`"${heard}" não está no app, e sem internet não dá para traduzir.`);
+  // 1) Google Tradutor: se a tradução volta igual, provavelmente não é inglês (ou é igual em português)
+  try {
+    const pt = await googleTranslate(heard);
+    if (pt && stripAccents(normalizeAnswer(pt)) !== stripAccents(normalizeAnswer(heard))) {
+      return askVoice(heard, null, { en: heard.toLowerCase(), pt, exEn: "", exPt: "" }, true);
+    }
+  } catch (e) { /* Google fora do ar: tenta a IA */ }
+  // 2) IA de reserva (também decide os casos em que a palavra é igual nas duas línguas)
   try {
     const f = (await callAI("traduzir", { palavra: heard }))[0];
     if (!f || !f.en || !f.pt) return voiceMsg("Palavra não reconhecida. Tente de novo.");
@@ -1107,7 +1128,7 @@ async function handleHeard(alts) {
     if (found) return askVoice(heard, found.track, found.w, false);
     askVoice(heard, null, { en: f.en, pt: f.pt, exEn: f.exEn || "", exPt: f.exPt || "" }, true);
   } catch (e) {
-    voiceMsg(e.message || "Não foi possível traduzir agora.");
+    voiceMsg("Palavra não reconhecida. Tente de novo.");
   }
 }
 
@@ -1288,6 +1309,7 @@ async function reloadDbTrack(key) {
   review = null;
   render();
   renderMine();
+  document.dispatchEvent(new Event("progress-saved"));
 }
 const reloadFrases = () => reloadDbTrack("frases");
 async function addMine(form) {
@@ -1331,6 +1353,21 @@ const AI_KEY = "ingles300-senha-ia";
 let aiBusy = false;
 const knownEn = (key) => TRACKS[key].items.filter((w) => state.tracks[key].known.has(w.id)).map((w) => w.en);
 
+// Chama uma função da Vercel mandando a senha (APP_SENHA). ask = pedir a senha se estiver errada
+async function apiFetch(path, opts, ask) {
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    let senha = "";
+    try { senha = localStorage.getItem(AI_KEY) || ""; } catch (e) { /* ignora */ }
+    const res = await fetch(path, { ...opts, headers: { ...(opts.headers || {}), "X-App-Senha": senha } });
+    if (res.status !== 401 || !ask) return res;
+    const nova = prompt("Digite a senha do app (a mesma que está em APP_SENHA na Vercel):");
+    if (!nova) throw new Error("Sem a senha, não dá para continuar.");
+    try { localStorage.setItem(AI_KEY, nova); } catch (e) { /* ignora */ }
+    if (syncNeedPass) { syncNeedPass = false; scheduleSync(); }
+  }
+  throw new Error("Senha errada.");
+}
+
 async function callAI(tipo, extra = {}) {
   const body = {
     ...extra,
@@ -1340,25 +1377,14 @@ async function callAI(tipo, extra = {}) {
       ? TRACKS.frases.items.map((w) => w.en)
       : [...TRACKS.words.items, ...TRACKS.phrasal.items, ...TRACKS.ia.items].map((w) => w.en),
   };
-  for (let tentativa = 0; tentativa < 2; tentativa++) {
-    let senha = "";
-    try { senha = localStorage.getItem(AI_KEY) || ""; } catch (e) { /* ignora */ }
-    const res = await fetch("api/sugerir", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-App-Senha": senha },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) {
-      const nova = prompt("Digite a senha da IA (a mesma que está em APP_SENHA na Vercel):");
-      if (!nova) throw new Error("Sem senha, não dá para usar a IA.");
-      try { localStorage.setItem(AI_KEY, nova); } catch (e) { /* ignora */ }
-      continue;
-    }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.erro || "A IA não respondeu. Tente de novo.");
-    return data.itens || [];
-  }
-  throw new Error("Senha errada.");
+  const res = await apiFetch("api/sugerir", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }, true);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.erro || "A IA não respondeu. Tente de novo.");
+  return data.itens || [];
 }
 
 // Gera palavras (aba Minhas palavras) ou frases (tela Minhas frases)
@@ -1407,15 +1433,135 @@ async function removeWord(id) {
 }
 
 /* =========================================================
-   BACKUP
+   BACKUP AUTOMÁTICO ONLINE (função da Vercel em api/backup.js)
+   Cada aparelho tem um código. Depois de cada mudança o progresso é enviado
+   (no máximo a cada 15 segundos). Em outro celular, é só restaurar com o código.
    ========================================================= */
-function exportBackup() {
-  save();
+const SYNC_KEY = "ingles300-codigo-backup";
+const SYNC_TIME_KEY = "ingles300-ultimo-backup";
+const SYNC_DELAY = 15000;
+let syncTimer = null;
+let syncOff = false;   // true quando o endereço não tem o backup online (ex.: GitHub Pages)
+let syncNeedPass = false; // a Vercel pediu a senha (APP_SENHA) e ela ainda não foi digitada
+let syncMsg = "";
+
+function newCode() {
+  const chars = "abcdefghijkmnpqrstuvwxyz23456789"; // sem letras e números que se confundem
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return [...bytes].map((b) => chars[b % chars.length]).join("");
+}
+function syncCode() {
+  let c = "";
+  try { c = localStorage.getItem(SYNC_KEY) || ""; } catch (e) { /* ignora */ }
+  if (!c) {
+    c = newCode();
+    try { localStorage.setItem(SYNC_KEY, c); } catch (e) { /* ignora */ }
+  }
+  return c;
+}
+const fmtCode = (c) => c.toUpperCase().match(/.{1,4}/g).join("-");
+const cleanCode = (c) => String(c || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+function renderSync() {
+  const el = $("#syncInfo");
+  if (!el) return;
+  let last = "";
+  try { last = localStorage.getItem(SYNC_TIME_KEY) || ""; } catch (e) { /* ignora */ }
+  const when = last ? new Date(last).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+  el.innerHTML = syncOff
+    ? esc(syncMsg || "Backup online indisponível neste endereço. Use o backup em arquivo.")
+    : `Backup automático ligado${when ? `, último em ${esc(when)}` : ""}.${syncMsg ? ` ${esc(syncMsg)}` : ""}
+       ${syncNeedPass ? '<button class="link-btn inline" id="syncPass">digitar a senha</button>' : ""}
+       Seu código: <b class="sync-code">${fmtCode(syncCode())}</b>
+       <button class="link-btn inline" id="syncCopy">copiar</button>
+       <span class="sync-hint">Guarde este código para recuperar seu progresso em outro celular.</span>`;
+}
+
+function scheduleSync() {
+  if (syncOff) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow(false), SYNC_DELAY);
+}
+async function syncNow(leaving) {
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  if (syncOff) return;
+  if (!navigator.onLine) { syncMsg = "Sem internet agora; envia quando voltar."; renderSync(); return; }
+  const body = JSON.stringify({ codigo: syncCode(), dados: backupData() });
+  try {
+    // ao sair do app, keepalive deixa o envio terminar (só aceita até ~64 KB)
+    const res = await apiFetch("api/backup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: leaving && body.length < 60000,
+    }, false);
+    syncNeedPass = res.status === 401;
+    if (res.status === 401) {
+      syncMsg = "Falta a senha do app para enviar o backup.";
+    } else if (res.status === 404 || res.status === 503) {
+      syncOff = true;
+      const data = await res.json().catch(() => ({}));
+      syncMsg = res.status === 503 ? data.erro : "";
+    } else if (res.ok) {
+      syncMsg = "";
+      try { localStorage.setItem(SYNC_TIME_KEY, new Date().toISOString()); } catch (e) { /* ignora */ }
+    } else {
+      syncMsg = "O último envio falhou; tenta de novo na próxima mudança.";
+    }
+  } catch (e) {
+    syncMsg = "O último envio falhou; tenta de novo na próxima mudança.";
+  }
+  renderSync();
+}
+async function restoreOnline() {
+  const typed = prompt("Digite o código do backup (aparece no rodapé do app no outro celular):");
+  const codigo = cleanCode(typed);
+  if (!codigo) return;
+  try {
+    const res = await apiFetch(`api/backup?codigo=${codigo}`, { method: "GET" }, true);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.erro || "Não foi possível buscar o backup."); return; }
+    if (!confirm("Isso substitui o seu progresso atual pelo do backup online. Continuar?")) return;
+    try { localStorage.setItem(SYNC_KEY, codigo); } catch (e) { /* ignora */ }
+    await applyBackupData(data.dados); // os dois aparelhos passam a salvar no mesmo backup
+  } catch (e) {
+    toast(e.message || "Não foi possível buscar o backup.");
+  }
+}
+// Salvou algo: agenda o envio
+document.addEventListener("progress-saved", scheduleSync);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && syncTimer) syncNow(true);
+});
+window.addEventListener("online", () => { if (!syncOff) scheduleSync(); });
+if (location.protocol.startsWith("http")) setTimeout(() => syncNow(false), 3000); // garante um backup ao abrir
+else { syncOff = true; syncMsg = "Backup online só funciona pelo link do app (Vercel)."; }
+renderSync();
+
+/* =========================================================
+   BACKUP EM ARQUIVO
+   ========================================================= */
+// Tudo o que vai no backup: progresso + frases que você adicionou + palavras da IA
+function backupData() {
   const data = serialize();
-  // as frases que você adicionou e as palavras da IA vão junto no arquivo
   const plain = ({ id, en, pt, exEn, exPt }) => ({ id, en, pt, exEn, exPt });
   data.minhasFrases = TRACKS.frases.items.filter((w) => w.mine).map(plain);
   data.minhasPalavras = TRACKS.ia.items.map(plain);
+  return data;
+}
+async function applyBackupData(data) {
+  if (Array.isArray(data.minhasFrases) && FraseDB.ok) await FraseDB.replaceMine(data.minhasFrases);
+  if (Array.isArray(data.minhasPalavras) && FraseDB.ok) await PalavraDB.replaceMine(data.minhasPalavras);
+  const copy = { ...data };
+  delete copy.minhasFrases;
+  delete copy.minhasPalavras;
+  localStorage.setItem(STORE_KEY, JSON.stringify(copy));
+  location.reload();
+}
+function exportBackup() {
+  save();
+  const data = backupData();
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1438,12 +1584,7 @@ function importBackup(file) {
     }
     if (!confirm("Isso substitui o seu progresso atual pelo do backup. Continuar?")) return;
     try {
-      if (Array.isArray(data.minhasFrases) && FraseDB.ok) await FraseDB.replaceMine(data.minhasFrases);
-      if (Array.isArray(data.minhasPalavras) && FraseDB.ok) await PalavraDB.replaceMine(data.minhasPalavras);
-      delete data.minhasFrases;
-      delete data.minhasPalavras;
-      localStorage.setItem(STORE_KEY, JSON.stringify(data));
-      location.reload();
+      await applyBackupData(data);
     } catch (e) {
       toast("Não foi possível salvar o backup neste navegador.");
     }
@@ -1679,6 +1820,20 @@ $("#mine").addEventListener("click", (e) => { if (e.target.id === "mine") closeM
 
 /* ---------- Backup, instalar e recomeçar ---------- */
 $("#exportBtn").addEventListener("click", exportBackup);
+$("#syncRestoreBtn").addEventListener("click", restoreOnline);
+$("#syncInfo").addEventListener("click", async (e) => {
+  if (e.target.id === "syncPass") {
+    const nova = prompt("Digite a senha do app (a mesma que está em APP_SENHA na Vercel):");
+    if (!nova) return;
+    try { localStorage.setItem(AI_KEY, nova); } catch (err) { /* ignora */ }
+    syncNeedPass = false;
+    syncNow(false);
+    return;
+  }
+  if (e.target.id !== "syncCopy") return;
+  try { await navigator.clipboard.writeText(fmtCode(syncCode())); toast("Código copiado."); }
+  catch (err) { prompt("Copie o seu código:", fmtCode(syncCode())); }
+});
 $("#importBtn").addEventListener("click", () => $("#importFile").click());
 $("#importFile").addEventListener("change", (e) => {
   const file = e.target.files && e.target.files[0];
@@ -1687,7 +1842,12 @@ $("#importFile").addEventListener("change", (e) => {
 });
 $("#resetBtn").addEventListener("click", () => {
   if (!confirm("Isso apaga todo o seu progresso e você volta para o Dia 1. Se quiser guardar, baixe um backup antes. Continuar?")) return;
-  try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignora */ }
+  try {
+    localStorage.removeItem(STORE_KEY);
+    // código novo: o backup online antigo continua guardado com o código antigo
+    localStorage.removeItem(SYNC_KEY);
+    localStorage.removeItem(SYNC_TIME_KEY);
+  } catch (e) { /* ignora */ }
   location.reload();
 });
 

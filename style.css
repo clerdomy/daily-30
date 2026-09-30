@@ -686,6 +686,9 @@ kbd {
 .foot .link-btn { align-self: flex-start; padding-left: 0; }
 .foot-actions { display: flex; flex-direction: column; align-items: flex-start; }
 .ios-hint { font-size: 0.85rem; }
+.sync-info { font-size: 0.9rem; }
+.sync-code { font-family: ui-monospace, Consolas, monospace; letter-spacing: 0.04em; color: var(--ink); }
+.sync-hint { display: block; font-size: 0.85rem; }
 
 /* ---------- Busca ---------- */
 .search {

@@ -1,6 +1,6 @@
 // Service worker: deixa o app funcionar offline depois da primeira visita.
 // Ao mudar os arquivos do app, aumente o número da versão abaixo.
-const CACHE = "ingles30-v6";
+const CACHE = "ingles30-v7";
 const ASSETS = [
   "./",
   "index.html",

@@ -33,7 +33,9 @@ A IA roda numa função da Vercel (`api/sugerir.js`), para a chave não ficar ex
    - `APP_SENHA`: uma senha qualquer. O app pede essa senha na primeira vez que você usa a IA, assim só você gasta a sua cota.
    - `OPENROUTER_MODEL` (opcional): o padrão `openrouter/free` escolhe sozinho um modelo grátis disponível.
      Para fixar um, use um id que termine em `:free` (lista em openrouter.ai/models)
-4. Faça o deploy de novo para as variáveis valerem.
+4. Para o **backup automático**: em **Storage > Create Database > Blob**, crie um Blob Store e ligue ao projeto
+   (isso cria a variável `BLOB_READ_WRITE_TOKEN` sozinho).
+5. Faça o deploy de novo para as variáveis valerem.
 
 Para testar no computador com a IA: `npx vercel dev` (com as mesmas variáveis num arquivo `.env`).
 Sem a Vercel (GitHub Pages, `python -m http.server`) o app funciona normalmente, só os botões de IA não funcionam.
@@ -61,6 +63,7 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
 - `frases.js` – 200 frases com respostas (Dias 11 a 30); na primeira visita elas são copiadas para o banco do navegador
 - `db.js` – banco de dados no navegador (IndexedDB) com as frases e as suas palavras; carrega o `app.js` depois de abrir o banco
 - `api/sugerir.js` – função da Vercel que pede palavras e frases novas à IA (OpenRouter)
+- `api/backup.js` – função da Vercel que guarda e devolve o backup automático (Vercel Blob, arquivo privado)
 - `manifest.webmanifest`, `sw.js` e `icons/` – deixam o app instalável e offline
 
 ## Como funciona
@@ -87,6 +90,8 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
 - **Falar:** toque no microfone e fale uma palavra em inglês. O app pergunta o que ela quer dizer. Acertou, ela vira
   "Já sei"; se não estava no app, a IA traduz e ela entra em Minhas palavras. Se o app não entender, avisa que a palavra
   não foi reconhecida. Usa o reconhecimento de voz do navegador (Chrome ou Safari) e precisa de internet.
+  Para traduzir palavras novas usa o Google Tradutor (endereço público, sem conta; pode parar de funcionar sem aviso)
+  e, se ele falhar, a IA.
 - **Revisão:** tudo que você marca ou responde entra na revisão. Acertou, a próxima revisão fica mais distante (1, 3, 7, 14, 30 dias). Errou, volta no dia seguinte. Quando não há nada para revisar, dá para fazer um **treino livre**.
 - **Sequência de dias:** mostra quantos dias seguidos você estudou.
 - **Busca:** a lupa no topo procura em inglês ou português nos 600 itens. No computador, a tecla `/` abre a busca.
@@ -96,8 +101,12 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
 Tudo fica salvo no navegador: marcações, notas, revisões, sequência e preferências (localStorage), e as frases e
 palavras que você ou a IA adicionaram (IndexedDB, banco `ingles30-db`). Nada vai para um servidor, a não ser a lista
 de palavras enviada para a IA quando você aperta o botão.
-Use **"Baixar backup do progresso"** no rodapé para guardar um arquivo, e **"Restaurar backup"** para
-levar o progresso para outro celular ou recuperar depois de limpar o navegador.
+**Backup automático:** pelo link da Vercel, o progresso é enviado sozinho depois de cada mudança (no máximo a cada
+15 segundos). No rodapé aparece o seu **código de backup**. Em outro celular, toque em **"Restaurar backup online"** e
+digite o código: os dois aparelhos passam a usar o mesmo backup. "Apagar progresso e recomeçar" cria um código novo, e o
+backup antigo continua guardado com o código antigo.
+
+Também dá para **"Baixar backup em arquivo"** e **"Restaurar backup de arquivo"**, que funcionam em qualquer endereço.
 
 ## Personalizar
 
