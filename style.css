@@ -296,9 +296,6 @@ body.is-review .review-banner { display: none; }
 .note [lang="en"] { font-weight: 700; }
 
 .list-tools { margin-bottom: 8px; color: var(--muted); }
-.list-section { font-family: var(--display); font-size: 1.05rem; margin: 18px 0 6px; }
-.list-section span { color: var(--muted); font-weight: 400; }
-.wordlist.is-carry { border-top-color: var(--marker); }
 .toggle {
   display: flex;
   align-items: center;

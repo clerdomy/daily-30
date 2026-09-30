@@ -162,6 +162,16 @@ function currentDay(t) {
   const known = state.tracks[t.key].known.size;
   return Math.min(t.firstDay + Math.floor(known / t.perDay), t.lastDay);
 }
+// Monta os dias pelo que você sabe: primeiro tudo o que você já sabe, depois o que ainda não sabe
+// (cada grupo na ordem original), de 30 em 30. Assim uma palavra de um dia à frente que você
+// marcou volta para completar o dia que ainda não tem 30, e o que você não sabe vai para a frente.
+function packDays(t) {
+  const known = state.tracks[t.key].known;
+  const ordered = [...t.items.filter((w) => known.has(w.id)), ...t.items.filter((w) => !known.has(w.id))];
+  ordered.forEach((w, i) => { w.day = t.firstDay + Math.floor(i / t.perDay); });
+}
+const packAllDays = () => TRACK_KEYS.forEach((k) => packDays(TRACKS[k]));
+packAllDays();
 
 /* =========================================================
    REVISÃO ESPAÇADA E SEQUÊNCIA DE DIAS
@@ -330,15 +340,6 @@ const T = () => TRACKS[ui.track];
 const S = () => state.tracks[ui.track];
 const item = (id) => T().byId.get(id);
 const itemsOfDay = (d) => T().items.filter((w) => w.day === d);
-// O que você não aprendeu nos dias que já passou volta no seu dia atual, até você aprender
-const CARRY_MAX = 30;
-function carryOver(d) {
-  if (d !== currentDay(T())) return [];
-  const known = S().known;
-  return T().items.filter((w) => w.day < d && !known.has(w.id)).slice(0, CARRY_MAX);
-}
-// Tudo o que se estuda num dia: o que veio dos dias anteriores + o do próprio dia
-const studyItems = (d) => [...carryOver(d), ...itemsOfDay(d)];
 const knownInDay = (d) => itemsOfDay(d).filter((w) => S().known.has(w.id)).length;
 const totalKnown = () => TRACK_KEYS.reduce((n, k) => n + state.tracks[k].known.size, 0);
 
@@ -346,6 +347,7 @@ const totalKnown = () => TRACK_KEYS.reduce((n, k) => n + state.tracks[k].known.s
    CABEÇALHO, DIAS E ABAS
    ========================================================= */
 function renderHeader() {
+  packAllDays(); // roda a cada mudança: o que você marcou pode mudar de dia
   checkLevelUp();
   const inReview = ui.mode === "review";
   const t = T();
@@ -417,8 +419,6 @@ function renderDayHead() {
   const cur = currentDay(t);
   const total = S().known.size;
   const dayItems = itemsOfDay(ui.day);
-  const first = dayItems[0].n;
-  const last = dayItems[dayItems.length - 1].n;
   let when;
   if (ui.day === cur) when = `É o seu dia atual: você já sabe ${total} ${t.noun} no total.`;
   else if (ui.day > cur) {
@@ -429,9 +429,7 @@ function renderDayHead() {
   $("#dayTitle").textContent = `Dia ${ui.day}`;
   $("#dayTheme").textContent = t.themes[ui.day - t.firstDay]
     || (ui.track === "frases" ? "Frases que você adicionou" : ui.track === "ia" ? "Palavras escolhidas pela IA" : "");
-  const carry = carryOver(ui.day).length;
-  const extra = carry ? ` Mais ${carry} de dias anteriores que você ainda não sabe.` : "";
-  $("#dayMeta").textContent = `${noun} ${first} a ${last}. ${when} Neste dia você sabe ${knownInDay(ui.day)} de ${dayItems.length}.${extra}`;
+  $("#dayMeta").textContent = `${dayItems.length} ${t.noun}. ${when} Neste dia você sabe ${knownInDay(ui.day)} de ${dayItems.length}.`;
 }
 
 function renderModes() {
@@ -508,7 +506,6 @@ function renderList() {
   const known = S().known;
   // o que você ainda não sabe fica em cima; o que já marcou vai para baixo
   const words = [...itemsOfDay(ui.day)].sort((a, b) => known.has(a.id) - known.has(b.id));
-  const carry = carryOver(ui.day);
   const listCls = `wordlist ${ui.hidePt ? "hide-pt" : ""} ${t.sentence ? "is-sentences" : ""}`;
   const itemLI = (w) => `
         <li class="word ${known.has(w.id) ? "is-known" : ""}" data-id="${w.id}">
@@ -536,10 +533,6 @@ function renderList() {
       ${ui.hidePt ? `<p class="list-hint">Tente lembrar o significado. Toque em ${noun} para conferir e marque <b>Já sei</b> se acertou.</p>` : ""}
       <p class="list-hint small">Suas marcações ficam salvas neste aparelho.</p>
     </div>
-    ${carry.length ? `
-      <h3 class="list-section">Ainda não sabe, de dias anteriores <span>(${carry.length})</span></h3>
-      <ul class="${listCls} is-carry">${carry.map(itemLI).join("")}</ul>
-      <h3 class="list-section">${t.noun.charAt(0).toUpperCase() + t.noun.slice(1)} do Dia ${ui.day}</h3>` : ""}
     <ul class="${listCls}">${words.map(itemLI).join("")}</ul>`;
 }
 
@@ -616,7 +609,7 @@ function answerActive(knew) {
    ========================================================= */
 function startCards() {
   const known = S().known;
-  const ids = studyItems(ui.day).map((w) => w.id);
+  const ids = itemsOfDay(ui.day).map((w) => w.id);
   // primeiro o que você ainda não sabe
   const deck = [...shuffle(ids.filter((id) => !known.has(id))), ...shuffle(ids.filter((id) => known.has(id)))];
   cards = { deck, pos: 0, flipped: false, got: new Set() };
@@ -682,7 +675,7 @@ function makeTokens(sentence) {
 
 function startQuiz(onlyIds) {
   ensureQuizType();
-  const dayIds = studyItems(ui.day).map((w) => w.id);
+  const dayIds = itemsOfDay(ui.day).map((w) => w.id);
   const ids = shuffle(onlyIds || dayIds);
   quiz = {
     retry: Boolean(onlyIds),

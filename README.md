@@ -68,8 +68,9 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
 - **Você avança pelo que já sabe, não pelo calendário.** Cada 30 palavras marcadas como sabidas (ou 10 phrasal
   verbs / 10 frases) avançam um dia: quem sabe 60 palavras está no Dia 3. Conta qualquer palavra, de qualquer dia,
   e você pode abrir qualquer dia quando quiser, para adiantar ou revisar.
-- **O que você não aprendeu passa para o dia seguinte.** No seu dia atual aparecem primeiro as palavras dos dias
-  anteriores que você ainda não marcou (até 30), também nos flashcards e no quiz, até você aprender.
+- **Os dias se arrumam pelo que você sabe.** Se você marca uma palavra de um dia mais à frente, ela volta para
+  completar o dia que ainda não tem 30. E o que você ainda não sabe vai para a frente, para você continuar vendo
+  até aprender. Cada 30 palavras sabidas formam exatamente um dia.
 - **Lista:** a tradução começa escondida. Tente lembrar, toque para conferir e marque "Já sei".
 - **Flashcards:** vire a carta e arraste para a direita (sei) ou para a esquerda (não sei).
 - **Quiz**, com 5 tipos:
