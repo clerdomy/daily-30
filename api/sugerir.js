@@ -40,6 +40,13 @@ Sugira exatamente ${QTD} palavras novas em inglês, úteis no dia a dia, um pass
 Para cada uma: a palavra (en), a tradução mais comum (pt), um exemplo curto e simples em inglês que use palavras que eu já sei (exEn) e a tradução do exemplo (exPt).
 
 ${FORMATO}`,
+  traduzir: (sabe, existentes, palavra) => `Uma pessoa brasileira falou em inglês e o reconhecimento de voz entendeu: "${palavra}".
+
+Se isso for uma palavra ou expressão curta real em inglês (pode estar no plural ou conjugada), responda com 1 item:
+a forma básica em inglês (en), a tradução mais comum para o português do Brasil (pt), um exemplo curto e simples em inglês (exEn) e a tradução do exemplo (exPt).
+Se não for inglês de verdade, responda {"itens": []}.
+
+${FORMATO}`,
   frases: (sabe, existentes) => `Sou brasileiro e estou aprendendo inglês.
 Palavras e phrasal verbs que eu já sei: ${sabe || "(ainda nenhuma)"}.
 Frases que já estão no meu app (não repita nenhuma): ${existentes}.
@@ -75,7 +82,9 @@ export default async function handler(req, res) {
   if (!key) return res.status(500).json({ erro: "Falta configurar OPENROUTER_API_KEY na Vercel." });
 
   const body = req.body || {};
-  const tipo = body.tipo === "frases" ? "frases" : "palavras";
+  const tipo = ["frases", "traduzir"].includes(body.tipo) ? body.tipo : "palavras";
+  const palavra = String(body.palavra || "").trim().slice(0, 60);
+  if (tipo === "traduzir" && !palavra) return res.status(400).json({ erro: "Falta a palavra." });
   const sabe = cleanList(body.conhecidas, 800).join(", ");
   const existentes = cleanList(body.existentes, 1500).join(" | ");
 
@@ -89,7 +98,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: MODEL,
-        messages: [{ role: "user", content: PROMPTS[tipo](sabe, existentes) }],
+        messages: [{ role: "user", content: PROMPTS[tipo](sabe, existentes, palavra) }],
         response_format: { type: "json_schema", json_schema: { name: "itens", strict: true, schema: SCHEMA } },
       }),
     });
@@ -106,7 +115,8 @@ export default async function handler(req, res) {
     const itens = parseItens(text)
       .filter((f) => f && typeof f.en === "string" && typeof f.pt === "string")
       .slice(0, QTD);
-    if (!itens.length) return res.status(502).json({ erro: "A IA respondeu num formato estranho. Tente de novo." });
+    // em "traduzir", lista vazia quer dizer que não é uma palavra em inglês
+    if (!itens.length && tipo !== "traduzir") return res.status(502).json({ erro: "A IA respondeu num formato estranho. Tente de novo." });
     return res.status(200).json({ itens });
   } catch (e) {
     console.error(e);

@@ -238,7 +238,7 @@ body.is-review .review-banner { display: none; }
   bottom: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: var(--paper);
   border-top: 1px solid var(--line);
   padding: 6px 8px calc(6px + var(--safe-bottom));
@@ -326,6 +326,23 @@ body.is-review .review-banner { display: none; }
   overflow-wrap: anywhere;
 }
 .word .pt { display: block; font-weight: 700; color: var(--cobalt); }
+/* ---------- Falar ---------- */
+.voice { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 16px 0; }
+.mic-btn {
+  width: 112px; height: 112px; border-radius: 50%;
+  border: 0; background: var(--cobalt); color: #fff;
+  display: grid; place-items: center;
+  box-shadow: 0 8px 24px rgba(36, 70, 216, 0.3);
+}
+.mic-btn svg { width: 48px; height: 48px; }
+.mic-btn.is-on { background: var(--bad); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.08); } }
+.voice-hint { color: var(--muted); margin: 0; }
+.voice-msg { margin: 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--bad-soft); font-weight: 700; }
+.voice-heard { margin: 0; color: var(--muted); }
+.voice .prompt-row { justify-content: center; }
+.next-row .btn svg { width: 20px; height: 20px; vertical-align: -4px; margin-right: 4px; }
+.extra-tag { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 1px 8px; margin-bottom: 2px; border-radius: 99px; background: var(--marker); color: #16213A; }
 .word .ex { grid-column: 2; margin: 4px 0 0; font-size: 0.95rem; }
 .word .ex > span { display: block; }
 .word .ex .ex-pt { color: var(--muted); }

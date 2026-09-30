@@ -339,10 +339,28 @@ let review = null; // sessão de revisão
 const view = $("#view");
 
 const T = () => TRACKS[ui.track];
+// Revisão e Falar valem para o app todo, sem trilha nem dia
+const isGlobalMode = () => ui.mode === "review" || ui.mode === "voice";
 const S = () => state.tracks[ui.track];
 const item = (id) => T().byId.get(id);
 const itemsOfDay = (d) => T().items.filter((w) => w.day === d);
 const knownInDay = (d) => itemsOfDay(d).filter((w) => S().known.has(w.id)).length;
+// Para relembrar: palavras de dias que você já concluiu no quiz, mas que ainda não marcou como "Já sei",
+// sorteadas para aparecer também em outros dias. O sorteio fica igual até você recarregar o app.
+const EXTRA_MAX = 5;
+const extraPicks = new Map();
+function extraItems(d) {
+  const t = T();
+  const s = S();
+  const key = `${t.key}:${d}`;
+  if (!extraPicks.has(key)) {
+    const pool = t.items.filter((w) => w.day !== d && s.done.has(w.day) && !s.known.has(w.id));
+    extraPicks.set(key, shuffle(pool).slice(0, EXTRA_MAX).map((w) => w.id));
+  }
+  return extraPicks.get(key).map((id) => t.byId.get(id)).filter((w) => w && w.day !== d && !s.known.has(w.id));
+}
+// Tudo o que se estuda num dia: as palavras para relembrar + as do próprio dia
+const studyItems = (d) => [...extraItems(d), ...itemsOfDay(d)];
 const totalKnown = () => TRACK_KEYS.reduce((n, k) => n + state.tracks[k].known.size, 0);
 
 /* =========================================================
@@ -351,14 +369,14 @@ const totalKnown = () => TRACK_KEYS.reduce((n, k) => n + state.tracks[k].known.s
 function renderHeader() {
   packAllDays(); // roda a cada mudança: o que você marcou pode mudar de dia
   checkLevelUp();
-  const inReview = ui.mode === "review";
+  const inReview = isGlobalMode();
   const t = T();
   const n = inReview ? totalKnown() : S().known.size;
   const total = inReview ? TOTAL_ITEMS : t.items.length;
-  $("#trackTitle").textContent = inReview ? "Revisão" : t.title;
-  $("#trackSub").textContent = inReview
-    ? "Reveja o que você já estudou na hora certa, para não esquecer."
-    : t.sub;
+  $("#trackTitle").textContent = ui.mode === "voice" ? "Falar" : inReview ? "Revisão" : t.title;
+  $("#trackSub").textContent = ui.mode === "voice"
+    ? "Fale uma palavra em inglês e mostre que sabe o que ela quer dizer."
+    : inReview ? "Reveja o que você já estudou na hora certa, para não esquecer." : t.sub;
   $("#knownCount").textContent = n;
   $("#totalCount").textContent = total;
   $("#learnedWord").textContent = inReview ? "itens aprendidos no total" : t.learned;
@@ -441,9 +459,9 @@ function renderModes() {
 }
 
 function render() {
-  document.body.classList.toggle("is-review", ui.mode === "review");
+  document.body.classList.toggle("is-review", isGlobalMode());
   // "Minhas palavras" ainda vazia: mostra só o convite para gerar com a IA
-  const empty = !T().items.length && ui.mode !== "review";
+  const empty = !T().items.length && !isGlobalMode();
   document.body.classList.toggle("is-empty", empty);
   if (empty) { renderHeader(); renderModes(); view.innerHTML = IA_EMPTY; return; }
   renderHeader();
@@ -454,6 +472,7 @@ function render() {
   if (ui.mode === "cards") { if (!cards) startCards(); renderCards(); }
   if (ui.mode === "quiz") { if (!quiz) startQuiz(); renderQuiz(); }
   if (ui.mode === "review") { if (!review) startReview(false); renderReview(); }
+  if (ui.mode === "voice") renderVoice();
 }
 function refreshProgress() { renderHeader(); if (T().items.length) { renderDays(); renderDayHead(); } }
 // Avisa quando o que você sabe faz você subir de dia (roda a cada atualização do cabeçalho)
@@ -507,12 +526,13 @@ function renderList() {
   const t = T();
   const known = S().known;
   // o que você ainda não sabe fica em cima; o que já marcou vai para baixo
-  const words = [...itemsOfDay(ui.day)].sort((a, b) => known.has(a.id) - known.has(b.id));
+  const words = [...extraItems(ui.day), ...[...itemsOfDay(ui.day)].sort((a, b) => known.has(a.id) - known.has(b.id))];
   const listCls = `wordlist ${ui.hidePt ? "hide-pt" : ""} ${t.sentence ? "is-sentences" : ""}`;
   const itemLI = (w) => `
         <li class="word ${known.has(w.id) ? "is-known" : ""}" data-id="${w.id}">
           ${speakBtn(w.en)}
           <div class="word-text" ${ui.hidePt ? `data-reveal role="button" tabindex="0" aria-expanded="false" aria-label="Ver a tradução de ${esc(w.en)}"` : ""}>
+            ${w.day !== ui.day ? `<span class="extra-tag">Relembrar · Dia ${w.day}</span>` : ""}
             <span class="en" lang="en">${esc(w.en)}</span>
             <span class="pt">${esc(w.pt)}</span>
           </div>
@@ -611,7 +631,7 @@ function answerActive(knew) {
    ========================================================= */
 function startCards() {
   const known = S().known;
-  const ids = itemsOfDay(ui.day).map((w) => w.id);
+  const ids = studyItems(ui.day).map((w) => w.id);
   // primeiro o que você ainda não sabe
   const deck = [...shuffle(ids.filter((id) => !known.has(id))), ...shuffle(ids.filter((id) => known.has(id)))];
   cards = { deck, pos: 0, flipped: false, got: new Set() };
@@ -677,7 +697,7 @@ function makeTokens(sentence) {
 
 function startQuiz(onlyIds) {
   ensureQuizType();
-  const dayIds = itemsOfDay(ui.day).map((w) => w.id);
+  const dayIds = studyItems(ui.day).map((w) => w.id);
   const ids = shuffle(onlyIds || dayIds);
   quiz = {
     retry: Boolean(onlyIds),
@@ -826,7 +846,7 @@ function finishQuiz() {
   if (quiz.retry) return;
   const s = S();
   s.best[ui.day] = Math.max(s.best[ui.day] || 0, quiz.score);
-  if (quiz.score / quiz.qs.length >= PASS_RATE) s.done.add(ui.day);
+  if (quiz.score / quiz.qs.length >= PASS_RATE) { s.done.add(ui.day); extraPicks.clear(); }
   save();
   renderDays();
 }
@@ -967,11 +987,178 @@ function answerReview(ok) {
 }
 
 /* =========================================================
+   MODO FALAR (reconhecimento de voz do navegador)
+   Você fala uma palavra em inglês, o app pergunta o que ela quer dizer.
+   Acertou: vira "Já sei" (e, se não estava no app, entra em Minhas palavras).
+   ========================================================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const MIC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>`;
+let voice = { step: "idle", msg: "" };
+let recog = null;
+
+// Procura a palavra em todas as trilhas (palavras, phrasal verbs, minhas palavras, frases)
+function findItem(text) {
+  const k = normalizeAnswer(text);
+  for (const key of ["words", "phrasal", "ia", "frases"]) {
+    const w = TRACKS[key].items.find((x) => normalizeAnswer(x.en) === k);
+    if (w) return { track: key, w };
+  }
+  return null;
+}
+
+function renderVoice() {
+  if (!SR) {
+    view.innerHTML = `<div class="result"><h3>Seu navegador não reconhece voz</h3>
+      <p>Use o Chrome (Android ou computador) ou o Safari (iPhone) para usar esta tela.</p></div>`;
+    return;
+  }
+  const v = voice;
+  const heard = v.heard ? `<p class="voice-heard">Você disse: <b lang="en">${esc(v.heard)}</b></p>` : "";
+  if (v.step === "idle" || v.step === "listening") {
+    const on = v.step === "listening";
+    view.innerHTML = `
+      <div class="voice">
+        <button class="mic-btn ${on ? "is-on" : ""}" data-action="voice-start" aria-label="Falar uma palavra">${MIC}</button>
+        <p class="voice-hint">${on ? "Ouvindo... fale uma palavra em inglês." : "Toque no microfone e fale uma palavra em inglês."}</p>
+        ${v.msg ? `<p class="voice-msg" role="status">${esc(v.msg)}</p>` : ""}
+      </div>`;
+    return;
+  }
+  if (v.step === "thinking") {
+    view.innerHTML = `<div class="voice">${heard}<p class="voice-hint">Procurando o significado...</p></div>`;
+    return;
+  }
+  const opts = v.options.map((pt, i) => {
+    let cls = "option";
+    if (v.step === "done") {
+      if (pt === v.w.pt) cls += " correct";
+      else if (i === v.chosen) cls += " wrong";
+    }
+    return `<button class="${cls}" data-vopt="${i}" ${v.step === "done" ? "disabled" : ""}>${esc(pt)}</button>`;
+  }).join("");
+  const feedback = v.step === "done" ? `
+    <div class="feedback ${v.ok ? "" : "is-wrong"}" role="status">
+      <p><b>${v.ok ? "Certo!" : `Era: ${esc(v.w.pt)}`}</b> <span lang="en">${esc(v.w.en)}</span></p>
+      ${v.w.exEn ? `<p lang="en">${esc(v.w.exEn)}</p><p class="ex-pt">${esc(v.w.exPt)}</p>` : ""}
+      ${v.note ? `<p class="ex-pt">${esc(v.note)}</p>` : ""}
+    </div>
+    <div class="next-row"><button class="btn primary" data-action="voice-start">${MIC} Falar outra palavra</button></div>` : "";
+  view.innerHTML = `
+    <div class="voice">
+      ${heard}
+      <div class="prompt-row"><p class="prompt" lang="en">${esc(v.w.en)}</p>${speakBtn(v.w.en)}</div>
+      <p class="ask">O que você quis dizer?</p>
+    </div>
+    <div class="options">${opts}</div>
+    ${feedback}`;
+}
+
+function voiceMsg(msg) {
+  voice = { step: "idle", msg };
+  if (ui.mode === "voice") renderVoice();
+}
+function stopListening() {
+  if (!recog) return;
+  recog.onend = null;
+  recog.onresult = null;
+  try { recog.abort(); } catch (e) { /* ignora */ }
+  recog = null;
+}
+function startListening() {
+  if (!SR || recog) return;
+  let got = false;
+  recog = new SR();
+  recog.lang = "en-US";
+  recog.interimResults = false;
+  recog.maxAlternatives = 3;
+  recog.onresult = (e) => {
+    got = true;
+    const alts = [...e.results[0]].map((a) => a.transcript.trim()).filter(Boolean);
+    if (alts.length) handleHeard(alts); else voiceMsg("Palavra não reconhecida. Tente de novo.");
+  };
+  recog.onerror = (e) => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") voice.msg = "Permita o uso do microfone para usar esta tela.";
+    else if (e.error === "network") voice.msg = "O reconhecimento de voz precisa de internet.";
+  };
+  recog.onend = () => {
+    recog = null;
+    if (!got && voice.step === "listening") voiceMsg(voice.msg || "Palavra não reconhecida. Tente de novo.");
+  };
+  voice = { step: "listening", msg: "" };
+  renderVoice();
+  try { recog.start(); } catch (e) { recog = null; voiceMsg("Não foi possível abrir o microfone."); }
+}
+
+async function handleHeard(alts) {
+  // se alguma das opções que o navegador entendeu já está no app, usa ela
+  for (const a of alts) {
+    const found = findItem(a);
+    if (found) return askVoice(a, found.track, found.w, false);
+  }
+  const heard = alts[0];
+  if (heard.split(/\s+/).length > 4) return voiceMsg(`Entendi "${heard}". Fale só uma palavra ou uma expressão curta.`);
+  voice = { step: "thinking", heard, msg: "" };
+  renderVoice();
+  if (!FraseDB.ok || !navigator.onLine) return voiceMsg(`"${heard}" não está no app, e sem internet não dá para traduzir.`);
+  try {
+    const f = (await callAI("traduzir", { palavra: heard }))[0];
+    if (!f || !f.en || !f.pt) return voiceMsg("Palavra não reconhecida. Tente de novo.");
+    const found = findItem(f.en); // a IA pode trazer a forma básica ("cats" vira "cat")
+    if (found) return askVoice(heard, found.track, found.w, false);
+    askVoice(heard, null, { en: f.en, pt: f.pt, exEn: f.exEn || "", exPt: f.exPt || "" }, true);
+  } catch (e) {
+    voiceMsg(e.message || "Não foi possível traduzir agora.");
+  }
+}
+
+function askVoice(heard, track, w, isNew) {
+  const wrong = shuffle(TRACKS.words.items.filter((x) => normalizeAnswer(x.pt) !== normalizeAnswer(w.pt)))
+    .slice(0, 3).map((x) => x.pt);
+  voice = { step: "ask", heard, track, w, isNew, options: shuffle([w.pt, ...wrong]), chosen: null, msg: "" };
+  if (ui.mode === "voice") renderVoice();
+  speak(w.en);
+}
+
+async function answerVoice(i) {
+  const v = voice;
+  if (v.step !== "ask") return;
+  v.chosen = i;
+  v.ok = v.options[i] === v.w.pt;
+  v.step = "done";
+  v.note = "";
+  try {
+    if (v.isNew) {
+      // palavra que não estava no app: entra em Minhas palavras
+      const [rec] = await PalavraDB.addMany([v.w]);
+      await reloadDbTrack("ia");
+      v.track = "ia";
+      v.w = TRACKS.ia.byId.get(rec.id);
+      v.note = v.ok ? "Ela entrou em Minhas palavras, já marcada como Já sei." : "Ela entrou em Minhas palavras para você estudar.";
+    }
+    const wasKnown = state.tracks[v.track].known.has(v.w.id);
+    if (v.ok) {
+      record(v.track, v.w.id, true);
+      if (!v.isNew) v.note = wasKnown ? "Você já tinha marcado esta palavra." : "Marcada como Já sei.";
+    } else if (!v.isNew) {
+      // errou: não tira do "Já sei", só faz a palavra voltar na revisão
+      srsGrade(v.track, v.w.id, false);
+      save();
+      v.note = "Ela vai voltar na revisão para você treinar.";
+    }
+  } catch (e) {
+    v.note = "Não foi possível salvar a palavra.";
+  }
+  renderHeader();
+  if (ui.mode === "voice") renderVoice();
+  speak(v.w.en);
+}
+
+/* =========================================================
    NAVEGAÇÃO
    ========================================================= */
 const isPhone = () => window.matchMedia("(max-width: 719px)").matches;
 function scrollToContent(force) {
-  const target = ui.mode === "review" ? document.querySelector(".top") : document.querySelector(".day-head");
+  const target = isGlobalMode() ? document.querySelector(".top") : document.querySelector(".day-head");
   if (!target) return;
   const top = target.getBoundingClientRect().top;
   if (top < 0 || (force && isPhone() && top > 8)) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -980,11 +1167,12 @@ function resetSessions() { cards = null; quiz = null; }
 function setDay(d) {
   ui.day = clampDay(T(), d);
   resetSessions();
-  if (ui.mode === "review") ui.mode = "list";
+  if (isGlobalMode()) ui.mode = "list";
   render();
   scrollToContent();
 }
 function setMode(m) {
+  if (m !== "voice") stopListening();
   ui.mode = m;
   if (m === "review") review = null; // sempre recalcula o que venceu
   render();
@@ -1000,7 +1188,7 @@ function setTrack(key, day) {
   if (day !== undefined) ui.day = clampDay(t, day);
   // cada trilha tem o seu progresso: ao trocar, vai para o seu dia atual nela
   else if (changed) ui.day = currentDay(t);
-  if (ui.mode === "review") ui.mode = "list";
+  if (isGlobalMode()) { stopListening(); ui.mode = "list"; }
   resetSessions();
   render();
 }
@@ -1143,8 +1331,9 @@ const AI_KEY = "ingles300-senha-ia";
 let aiBusy = false;
 const knownEn = (key) => TRACKS[key].items.filter((w) => state.tracks[key].known.has(w.id)).map((w) => w.en);
 
-async function callAI(tipo) {
+async function callAI(tipo, extra = {}) {
   const body = {
+    ...extra,
     tipo,
     conhecidas: [...knownEn("words"), ...knownEn("phrasal"), ...knownEn("ia")],
     existentes: tipo === "frases"
@@ -1309,6 +1498,9 @@ view.addEventListener("click", (e) => {
   const unb = e.target.closest("[data-unbuild]");
   if (unb && !unb.disabled) { quiz.qs[quiz.pos].built.splice(Number(unb.dataset.unbuild), 1); renderQuiz(); return; }
 
+  const vopt = e.target.closest("[data-vopt]");
+  if (vopt && !vopt.disabled) { answerVoice(Number(vopt.dataset.vopt)); return; }
+
   const rm = e.target.closest("[data-remove-word]");
   if (rm) { removeWord(Number(rm.dataset.removeWord)); return; }
 
@@ -1333,6 +1525,7 @@ view.addEventListener("click", (e) => {
     case "go-study": setMode("list"); break;
     case "open-mine": openMine(); break;
     case "ai-words": generateWithAI("palavras", act); break;
+    case "voice-start": startListening(); break;
     case "practice": startReview(true); renderReview(); break;
     case "build-clear": quiz.qs[quiz.pos].built = []; renderQuiz(); break;
     case "build-check": {

@@ -71,6 +71,8 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
 - **Os dias se arrumam pelo que você sabe.** Se você marca uma palavra de um dia mais à frente, ela volta para
   completar o dia que ainda não tem 30. E o que você ainda não sabe vai para a frente, para você continuar vendo
   até aprender. Cada 30 palavras sabidas formam exatamente um dia.
+- **Para relembrar.** Palavras de dias que você concluiu no quiz, mas não marcou como "Já sei", aparecem sorteadas
+  (até 5) em outros dias, na lista, nos flashcards e no quiz, com a etiqueta "Relembrar".
 - **Lista:** a tradução começa escondida. Tente lembrar, toque para conferir e marque "Já sei".
 - **Flashcards:** vire a carta e arraste para a direita (sei) ou para a esquerda (não sei).
 - **Quiz**, com 5 tipos:
@@ -82,6 +84,9 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
   
   Acertando 80%, o dia fica concluído (✓). O quiz não marca nada como "Já sei": isso só acontece quando você mesmo
   marca (na lista, nos flashcards ou na revisão). As respostas do quiz só ajustam quando cada item volta na revisão.
+- **Falar:** toque no microfone e fale uma palavra em inglês. O app pergunta o que ela quer dizer. Acertou, ela vira
+  "Já sei"; se não estava no app, a IA traduz e ela entra em Minhas palavras. Se o app não entender, avisa que a palavra
+  não foi reconhecida. Usa o reconhecimento de voz do navegador (Chrome ou Safari) e precisa de internet.
 - **Revisão:** tudo que você marca ou responde entra na revisão. Acertou, a próxima revisão fica mais distante (1, 3, 7, 14, 30 dias). Errou, volta no dia seguinte. Quando não há nada para revisar, dá para fazer um **treino livre**.
 - **Sequência de dias:** mostra quantos dias seguidos você estudou.
 - **Busca:** a lupa no topo procura em inglês ou português nos 600 itens. No computador, a tecla `/` abre a busca.
