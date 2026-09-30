@@ -7,7 +7,7 @@ App simples (HTML, CSS e JavaScript puro, sem instalar nada) para aprender ingl�
 | 1 a 10 | **300 palavras** mais usadas (30 por dia) e **100 phrasal verbs** (10 por dia) |
 | 11 a 30 | **200 frases** do dia a dia (10 por dia), cada uma com uma resposta para treinar conversa |
 | Todo dia | **Revisão espaçada**: o que você estudou volta em 1, 3, 7, 14 e 30 dias |
-| Quando quiser | **Minhas palavras** e **Minhas frases**: a IA (Gemini) sugere palavras e frases novas com base no que você já sabe, e você também pode adicionar frases à mão |
+| Quando quiser | **Minhas palavras** e **Minhas frases**: a IA (OpenRouter, modelos grátis) sugere palavras e frases novas com base no que você já sabe, e você também pode adicionar frases à mão |
 
 Nada se repete. As frases usam o vocabulário dos Dias 1 a 10 (cerca de 80% das palavras delas vêm das 300), e cada frase mostra quais palavras você já viu.
 
@@ -26,18 +26,20 @@ Abra o `index.html` no navegador, ou use um servidor local:
 
 A IA roda numa função da Vercel (`api/sugerir.js`), para a chave não ficar exposta no navegador.
 
-1. Crie uma chave grátis do Gemini em [Google AI Studio](https://aistudio.google.com/apikey).
+1. Crie uma conta grátis no [OpenRouter](https://openrouter.ai) e gere uma chave em **Keys**.
 2. Importe o repositório na Vercel (Framework: **Other**, sem comando de build).
 3. Em **Settings > Environment Variables**, crie:
-   - `GEMINI_API_KEY`: a sua chave
+   - `OPENROUTER_API_KEY`: a sua chave
    - `APP_SENHA`: uma senha qualquer. O app pede essa senha na primeira vez que você usa a IA, assim só você gasta a sua cota.
-   - `GEMINI_MODEL` (opcional): troque o modelo se o `gemini-2.5-flash` deixar de existir
+   - `OPENROUTER_MODEL` (opcional): o padrão `openrouter/free` escolhe sozinho um modelo grátis disponível.
+     Para fixar um, use um id que termine em `:free` (lista em openrouter.ai/models)
 4. Faça o deploy de novo para as variáveis valerem.
 
 Para testar no computador com a IA: `npx vercel dev` (com as mesmas variáveis num arquivo `.env`).
 Sem a Vercel (GitHub Pages, `python -m http.server`) o app funciona normalmente, só os botões de IA não funcionam.
 
-No plano grátis do Gemini, o Google pode usar o que é enviado para melhorar os produtos dele. O app só manda listas de palavras em inglês.
+Os modelos grátis têm limite de pedidos por dia, e alguns provedores podem guardar o que é enviado.
+O app só manda listas de palavras em inglês.
 
 ### Publicar e instalar no celular (recomendado)
 
@@ -58,7 +60,7 @@ O modo offline só funciona por http/https (GitHub Pages ou servidor local), nã
 - `phrasal.js` – 100 phrasal verbs (Dias 1 a 10)
 - `frases.js` – 200 frases com respostas (Dias 11 a 30); na primeira visita elas são copiadas para o banco do navegador
 - `db.js` – banco de dados no navegador (IndexedDB) com as frases e as suas palavras; carrega o `app.js` depois de abrir o banco
-- `api/sugerir.js` – função da Vercel que pede palavras e frases novas ao Gemini
+- `api/sugerir.js` – função da Vercel que pede palavras e frases novas à IA (OpenRouter)
 - `manifest.webmanifest`, `sw.js` e `icons/` – deixam o app instalável e offline
 
 ## Como funciona

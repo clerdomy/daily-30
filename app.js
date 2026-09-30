@@ -481,8 +481,9 @@ function usesHTML(w) {
 
 function renderList() {
   const t = T();
-  const words = itemsOfDay(ui.day);
   const known = S().known;
+  // o que você ainda não sabe fica em cima; o que já marcou vai para baixo
+  const words = [...itemsOfDay(ui.day)].sort((a, b) => known.has(a.id) - known.has(b.id));
   const note = { phrasal: PHRASAL_NOTE, frases: FRASES_NOTE, ia: IA_NOTE }[ui.track] || "";
   const noun = ui.track === "phrasal" ? "um phrasal verb" : ui.track === "frases" ? "uma frase" : "uma palavra";
   view.innerHTML = `
@@ -511,6 +512,18 @@ function renderList() {
           ${ui.track === "ia" ? `<button class="link-btn remove-word" data-remove-word="${w.id}" aria-label="Remover ${esc(w.en)}">Remover</button>` : ""}
         </li>`).join("")}
     </ul>`;
+}
+
+// Depois de marcar "Já sei", o item desce para o fim da lista (e sobe de volta se desmarcar)
+function moveWord(li, isKnown) {
+  setTimeout(() => {
+    const list = li.parentElement;
+    if (!list || li.classList.contains("is-known") !== isKnown) return;
+    if (isKnown) list.appendChild(li);
+    else list.insertBefore(li, [...list.children].find((x) => x !== li && x.classList.contains("is-known")) || null);
+    li.classList.add("flash");
+    setTimeout(() => li.classList.remove("flash"), 1200);
+  }, 350);
 }
 
 function toggleReveal(word) {
@@ -1099,7 +1112,7 @@ async function removeMine(id) {
 }
 
 /* =========================================================
-   IA (Gemini, pela função da Vercel em api/sugerir.js)
+   IA (OpenRouter, modelos grátis, pela função da Vercel em api/sugerir.js)
    Manda o que você já sabe e recebe 10 palavras ou frases novas.
    ========================================================= */
 const AI_KEY = "ingles300-senha-ia";
@@ -1337,7 +1350,9 @@ view.addEventListener("change", (e) => {
       delete state.srs[skey(ui.track, id)];
     }
     save();
-    e.target.closest(".word").classList.toggle("is-known", e.target.checked);
+    const li = e.target.closest(".word");
+    li.classList.toggle("is-known", e.target.checked);
+    moveWord(li, e.target.checked);
     refreshProgress();
   }
 });
