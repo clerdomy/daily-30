@@ -1,6 +1,6 @@
 // Service worker: deixa o app funcionar offline depois da primeira visita.
 // Ao mudar os arquivos do app, aumente o número da versão abaixo.
-const CACHE = "ingles30-v8";
+const CACHE = "ingles30-v9";
 const ASSETS = [
   "./",
   "index.html",
@@ -18,8 +18,8 @@ const ASSETS = [
   "icons/apple-touch-icon.png",
   "icons/favicon-64.png",
 ];
-// Fontes do Google e bibliotecas do cdnjs (leitor de PDF e EPUB): guarda na primeira vez
-const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com"];
+// Fontes do Google e bibliotecas do cdnjs e jsDelivr (leitor de PDF e EPUB): guarda na primeira vez
+const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
